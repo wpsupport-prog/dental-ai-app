@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCircle, FileText, Upload, RefreshCw, Check, HeartPulse, User, ShieldCheck, Stethoscope, Activity } from 'lucide-react';
+import { CheckCircle, FileText, Upload, RefreshCw, Check, HeartPulse, User, ShieldCheck, Stethoscope, Activity, Utensils } from 'lucide-react';
 import axios from 'axios';
 
 export default function App() {
@@ -45,7 +45,7 @@ export default function App() {
     malignancyChecked: false,
     malignancySpecified: '',
 
-    // History of Previous Hospitalization
+    // History of Hospitalization
     medicalHospitalizationChecked: false,
     medicalHospitalizationSpecified: '',
     surgicalChecked: false,
@@ -56,6 +56,16 @@ export default function App() {
     tattooSpecified: '',
     othersChecked: false,
     othersSpecified: '',
+
+    // Dietary Habits / Social History
+    sugarBeveragesChecked: false,
+    sugarBeveragesSpecified: '',
+    useAlcoholChecked: false,
+    useAlcoholSpecified: '',
+    useTobaccoChecked: false,
+    useTobaccoSpecified: '',
+    betelNutChecked: false,
+    betelNutSpecified: '',
   });
 
   const [file, setFile] = useState<File | null>(null);
@@ -90,58 +100,73 @@ export default function App() {
       const vitals = response.data.vital_signs || {};
       const mems = response.data.memberships || {};
       const med = response.data.medical_history || {};
+      const social = response.data.social_history || {};
 
-      setFormData({
-        surname: info.surname || '',
-        firstName: info.first_name || '',
-        middleInitial: info.middle_initial || '',
-        dob: info.dob || '',
-        age: info.age || '',
-        sex: info.sex || '',
-        civilStatus: info.civil_status || '',
-        placeOfBirth: info.place_of_birth || '',
-        address: info.address || '',
-        occupation: info.occupation || '',
-        parentGuardian: info.parent_guardian || '',
-        philhealthNo: info.philhealth_no || '',
-        yakapProvider: info.yakap_provider || '',
-        contactNo: info.contact_no || '',
-        signedName: info.signed_name || '',
+      // Merge strategy: Preserve previous state values if new scan returns empty/default values
+      setFormData((prev) => ({
+        // Demographics
+        surname: info.surname || prev.surname,
+        firstName: info.first_name || prev.firstName,
+        middleInitial: info.middle_initial || prev.middleInitial,
+        dob: info.dob || prev.dob,
+        age: info.age || prev.age,
+        sex: info.sex || prev.sex,
+        civilStatus: info.civil_status || prev.civilStatus,
+        placeOfBirth: info.place_of_birth || prev.placeOfBirth,
+        address: info.address || prev.address,
+        occupation: info.occupation || prev.occupation,
+        parentGuardian: info.parent_guardian || prev.parentGuardian,
+        philhealthNo: info.philhealth_no || prev.philhealthNo,
+        yakapProvider: info.yakap_provider || prev.yakapProvider,
+        contactNo: info.contact_no || prev.contactNo,
+        signedName: info.signed_name || prev.signedName,
 
-        bloodPressure: vitals.blood_pressure || '',
-        pulseRate: vitals.pulse_rate || '',
-        temperature: vitals.temperature || '',
+        // Vitals
+        bloodPressure: vitals.blood_pressure || prev.bloodPressure,
+        pulseRate: vitals.pulse_rate || prev.pulseRate,
+        temperature: vitals.temperature || prev.temperature,
 
-        nhtsPr: !!mems.nhts_pr,
-        fourPs: !!mems.four_ps,
-        indigenousPeople: !!mems.indigenous_people,
-        pwds: !!mems.pwds,
+        // Memberships
+        nhtsPr: mems.nhts_pr !== undefined ? !!mems.nhts_pr : prev.nhtsPr,
+        fourPs: mems.four_ps !== undefined ? !!mems.four_ps : prev.fourPs,
+        indigenousPeople: mems.indigenous_people !== undefined ? !!mems.indigenous_people : prev.indigenousPeople,
+        pwds: mems.pwds !== undefined ? !!mems.pwds : prev.pwds,
 
-        // Medical Conditions
-        allergiesChecked: !!med.allergies_checked || !!med.allergies_specified,
-        allergiesSpecified: med.allergies_specified || '',
-        hypertensionCva: !!med.hypertension_cva,
-        diabetesMellitus: !!med.diabetes_mellitus,
-        bloodDisorder: !!med.blood_disorder,
-        cardiovascularHeartDiseases: !!med.cardiovascular_heart_diseases,
-        thyroidDisorders: !!med.thyroid_disorders,
-        hepatitisChecked: !!med.hepatitis_checked || !!med.hepatitis_specified,
-        hepatitisSpecified: med.hepatitis_specified || '',
-        malignancyChecked: !!med.malignancy_checked || !!med.malignancy_specified,
-        malignancySpecified: med.malignancy_specified || '',
+        // Medical History
+        allergiesChecked: med.allergies_checked || !!med.allergies_specified || prev.allergiesChecked,
+        allergiesSpecified: med.allergies_specified || prev.allergiesSpecified,
+        hypertensionCva: med.hypertension_cva !== undefined ? !!med.hypertension_cva : prev.hypertensionCva,
+        diabetesMellitus: med.diabetes_mellitus !== undefined ? !!med.diabetes_mellitus : prev.diabetesMellitus,
+        bloodDisorder: med.blood_disorder !== undefined ? !!med.blood_disorder : prev.bloodDisorder,
+        cardiovascularHeartDiseases: med.cardiovascular_heart_diseases !== undefined ? !!med.cardiovascular_heart_diseases : prev.cardiovascularHeartDiseases,
+        thyroidDisorders: med.thyroid_disorders !== undefined ? !!med.thyroid_disorders : prev.thyroidDisorders,
+        hepatitisChecked: med.hepatitis_checked || !!med.hepatitis_specified || prev.hepatitisChecked,
+        hepatitisSpecified: med.hepatitis_specified || prev.hepatitisSpecified,
+        malignancyChecked: med.malignancy_checked || !!med.malignancy_specified || prev.malignancyChecked,
+        malignancySpecified: med.malignancy_specified || prev.malignancySpecified,
 
-        // Hospitalization & History
-        medicalHospitalizationChecked: !!med.medical_hospitalization_checked || !!med.medical_hospitalization_specified,
-        medicalHospitalizationSpecified: med.medical_hospitalization_specified || '',
-        surgicalChecked: !!med.surgical_checked || !!med.surgical_specified,
-        surgicalSpecified: med.surgical_specified || '',
-        bloodTransfusionChecked: !!med.blood_transfusion_checked || !!med.blood_transfusion_specified,
-        bloodTransfusionSpecified: med.blood_transfusion_specified || '',
-        tattooChecked: !!med.tattoo_checked || !!med.tattoo_specified,
-        tattooSpecified: med.tattoo_specified || '',
-        othersChecked: !!med.others_checked || !!med.others_specified,
-        othersSpecified: med.others_specified || '',
-      });
+        // Hospitalization
+        medicalHospitalizationChecked: med.medical_hospitalization_checked || !!med.medical_hospitalization_specified || prev.medicalHospitalizationChecked,
+        medicalHospitalizationSpecified: med.medical_hospitalization_specified || prev.medicalHospitalizationSpecified,
+        surgicalChecked: med.surgical_checked || !!med.surgical_specified || prev.surgicalChecked,
+        surgicalSpecified: med.surgical_specified || prev.surgicalSpecified,
+        bloodTransfusionChecked: med.blood_transfusion_checked || !!med.blood_transfusion_specified || prev.bloodTransfusionChecked,
+        bloodTransfusionSpecified: med.blood_transfusion_specified || prev.bloodTransfusionSpecified,
+        tattooChecked: med.tattoo_checked || !!med.tattoo_specified || prev.tattooChecked,
+        tattooSpecified: med.tattoo_specified || prev.tattooSpecified,
+        othersChecked: med.others_checked || !!med.others_specified || prev.othersChecked,
+        othersSpecified: med.others_specified || prev.othersSpecified,
+
+        // Dietary Habits / Social History (Smart merge)
+        sugarBeveragesChecked: social.sugar_beverages_checked || !!social.sugar_beverages_specified || prev.sugarBeveragesChecked,
+        sugarBeveragesSpecified: social.sugar_beverages_specified || prev.sugarBeveragesSpecified,
+        useAlcoholChecked: social.use_alcohol_checked || !!social.use_alcohol_specified || prev.useAlcoholChecked,
+        useAlcoholSpecified: social.use_alcohol_specified || prev.useAlcoholSpecified,
+        useTobaccoChecked: social.use_tobacco_checked || !!social.use_tobacco_specified || prev.useTobaccoChecked,
+        useTobaccoSpecified: social.use_tobacco_specified || prev.useTobaccoSpecified,
+        betelNutChecked: social.betel_nut_checked || !!social.betel_nut_specified || prev.betelNutChecked,
+        betelNutSpecified: social.betel_nut_specified || prev.betelNutSpecified,
+      }));
 
       setConfidence(response.data.confidence_score);
     } catch (error) {
@@ -152,6 +177,83 @@ export default function App() {
     }
   };
 
+	// Add this function right after handleUpload
+  const handleSaveDatabase = async () => {
+    try {
+      await axios.post('http://localhost:8000/api/v1/forms/save', {
+        document_id: `doc_${Date.now()}`,
+        confidence_score: confidence,
+        requires_review: false,
+        patient_info: {
+          surname: formData.surname,
+          first_name: formData.firstName,
+          middle_initial: formData.middleInitial,
+          dob: formData.dob,
+          age: formData.age,
+          sex: formData.sex,
+          civil_status: formData.civilStatus,
+          place_of_birth: formData.placeOfBirth,
+          address: formData.address,
+          occupation: formData.occupation,
+          parent_guardian: formData.parentGuardian,
+          philhealth_no: formData.philhealthNo,
+          yakap_provider: formData.yakapProvider,
+          contact_no: formData.contactNo,
+          signed_name: formData.signedName,
+        },
+        vital_signs: {
+          blood_pressure: formData.bloodPressure,
+          pulse_rate: formData.pulseRate,
+          temperature: formData.temperature,
+        },
+        memberships: {
+          nhts_pr: formData.nhtsPr,
+          four_ps: formData.fourPs,
+          indigenous_people: formData.indigenousPeople,
+          pwds: formData.pwds,
+        },
+        medical_history: {
+          allergies_checked: formData.allergiesChecked,
+          allergies_specified: formData.allergiesSpecified,
+          hypertension_cva: formData.hypertensionCva,
+          diabetes_mellitus: formData.diabetesMellitus,
+          blood_disorder: formData.bloodDisorder,
+          cardiovascular_heart_diseases: formData.cardiovascularHeartDiseases,
+          thyroid_disorders: formData.thyroidDisorders,
+          hepatitis_checked: formData.hepatitisChecked,
+          hepatitis_specified: formData.hepatitisSpecified,
+          malignancy_checked: formData.malignancyChecked,
+          malignancy_specified: formData.malignancySpecified,
+          medical_hospitalization_checked: formData.medicalHospitalizationChecked,
+          medical_hospitalization_specified: formData.medicalHospitalizationSpecified,
+          surgical_checked: formData.surgicalChecked,
+          surgical_specified: formData.surgicalSpecified,
+          blood_transfusion_checked: formData.bloodTransfusionChecked,
+          blood_transfusion_specified: formData.bloodTransfusionSpecified,
+          tattoo_checked: formData.tattooChecked,
+          tattoo_specified: formData.tattooSpecified,
+          others_checked: formData.othersChecked,
+          others_specified: formData.othersSpecified,
+        },
+        social_history: {
+          sugar_beverages_checked: formData.sugarBeveragesChecked,
+          sugar_beverages_specified: formData.sugarBeveragesSpecified,
+          use_alcohol_checked: formData.useAlcoholChecked,
+          use_alcohol_specified: formData.useAlcoholSpecified,
+          use_tobacco_checked: formData.useTobaccoChecked,
+          use_tobacco_specified: formData.useTobaccoSpecified,
+          betel_nut_checked: formData.betelNutChecked,
+          betel_nut_specified: formData.betelNutSpecified,
+        }
+      });
+
+      setSavedSuccess(true);
+    } catch (error) {
+      console.error('Error saving to database:', error);
+      alert('Failed to save record to database.');
+    }
+  };
+  
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans pb-12">
       <header className="border-b border-slate-800 bg-slate-950 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
@@ -317,8 +419,6 @@ export default function App() {
                 <Stethoscope className="w-4 h-4"/> Medical History
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs text-slate-300 bg-slate-900/60 p-4 rounded-lg border border-slate-800">
-                
-                {/* Allergies */}
                 <div className="col-span-2 grid grid-cols-3 items-center gap-2 pb-1 border-b border-slate-800/50">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.allergiesChecked} onChange={(e) => setFormData({ ...formData, allergiesChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
@@ -352,7 +452,6 @@ export default function App() {
                   Thyroid Disorders
                 </label>
 
-                {/* Hepatitis */}
                 <div className="col-span-2 grid grid-cols-3 items-center gap-2 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.hepatitisChecked} onChange={(e) => setFormData({ ...formData, hepatitisChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
@@ -361,7 +460,6 @@ export default function App() {
                   <input type="text" placeholder="Type specified..." value={formData.hepatitisSpecified} onChange={(e) => setFormData({ ...formData, hepatitisSpecified: e.target.value })} className="col-span-2 bg-slate-900 border border-slate-700 rounded-md p-1.5 text-slate-100 text-xs font-mono text-emerald-400" />
                 </div>
 
-                {/* Malignancy */}
                 <div className="col-span-2 grid grid-cols-3 items-center gap-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.malignancyChecked} onChange={(e) => setFormData({ ...formData, malignancyChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
@@ -379,7 +477,6 @@ export default function App() {
               </div>
               <div className="grid grid-cols-1 gap-3 text-xs text-slate-300 bg-slate-900/60 p-4 rounded-lg border border-slate-800">
                 
-                {/* Medical */}
                 <div className="grid grid-cols-3 items-center gap-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.medicalHospitalizationChecked} onChange={(e) => setFormData({ ...formData, medicalHospitalizationChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
@@ -388,7 +485,6 @@ export default function App() {
                   <input type="text" placeholder="Details..." value={formData.medicalHospitalizationSpecified} onChange={(e) => setFormData({ ...formData, medicalHospitalizationSpecified: e.target.value })} className="col-span-2 bg-slate-900 border border-slate-700 rounded-md p-1.5 text-slate-100 text-xs font-mono text-emerald-400" />
                 </div>
 
-                {/* Surgical */}
                 <div className="grid grid-cols-3 items-center gap-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.surgicalChecked} onChange={(e) => setFormData({ ...formData, surgicalChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
@@ -397,7 +493,6 @@ export default function App() {
                   <input type="text" placeholder="Details..." value={formData.surgicalSpecified} onChange={(e) => setFormData({ ...formData, surgicalSpecified: e.target.value })} className="col-span-2 bg-slate-900 border border-slate-700 rounded-md p-1.5 text-slate-100 text-xs font-mono text-emerald-400" />
                 </div>
 
-                {/* Blood Transfusion */}
                 <div className="grid grid-cols-3 items-center gap-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.bloodTransfusionChecked} onChange={(e) => setFormData({ ...formData, bloodTransfusionChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
@@ -406,7 +501,6 @@ export default function App() {
                   <input type="text" placeholder="Details..." value={formData.bloodTransfusionSpecified} onChange={(e) => setFormData({ ...formData, bloodTransfusionSpecified: e.target.value })} className="col-span-2 bg-slate-900 border border-slate-700 rounded-md p-1.5 text-slate-100 text-xs font-mono text-emerald-400" />
                 </div>
 
-                {/* Tattoo */}
                 <div className="grid grid-cols-3 items-center gap-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.tattooChecked} onChange={(e) => setFormData({ ...formData, tattooChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
@@ -415,7 +509,6 @@ export default function App() {
                   <input type="text" placeholder="Details..." value={formData.tattooSpecified} onChange={(e) => setFormData({ ...formData, tattooSpecified: e.target.value })} className="col-span-2 bg-slate-900 border border-slate-700 rounded-md p-1.5 text-slate-100 text-xs font-mono text-emerald-400" />
                 </div>
 
-                {/* Others */}
                 <div className="grid grid-cols-3 items-center gap-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" checked={formData.othersChecked} onChange={(e) => setFormData({ ...formData, othersChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
@@ -426,6 +519,49 @@ export default function App() {
 
               </div>
             </div>
+
+            {/* NEW SECTION: Dietary Habits / Social History */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-blue-400 border-b border-slate-800/80 pb-1">
+                <Utensils className="w-4 h-4"/> Dietary Habits / Social History
+              </div>
+              <div className="grid grid-cols-1 gap-3 text-xs text-slate-300 bg-slate-900/60 p-4 rounded-lg border border-slate-800">
+                
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={formData.sugarBeveragesChecked} onChange={(e) => setFormData({ ...formData, sugarBeveragesChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
+                    Sugar Beverages/Food:
+                  </label>
+                  <input type="text" placeholder="Amount, Frequency & Duration..." value={formData.sugarBeveragesSpecified} onChange={(e) => setFormData({ ...formData, sugarBeveragesSpecified: e.target.value })} className="col-span-2 bg-slate-900 border border-slate-700 rounded-md p-1.5 text-slate-100 text-xs font-mono text-emerald-400" />
+                </div>
+
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={formData.useAlcoholChecked} onChange={(e) => setFormData({ ...formData, useAlcoholChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
+                    Use of Alcohol:
+                  </label>
+                  <input type="text" placeholder="Amount, Frequency & Duration..." value={formData.useAlcoholSpecified} onChange={(e) => setFormData({ ...formData, useAlcoholSpecified: e.target.value })} className="col-span-2 bg-slate-900 border border-slate-700 rounded-md p-1.5 text-slate-100 text-xs font-mono text-emerald-400" />
+                </div>
+
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={formData.useTobaccoChecked} onChange={(e) => setFormData({ ...formData, useTobaccoChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
+                    Use of Tobacco:
+                  </label>
+                  <input type="text" placeholder="Amount, Frequency & Duration..." value={formData.useTobaccoSpecified} onChange={(e) => setFormData({ ...formData, useTobaccoSpecified: e.target.value })} className="col-span-2 bg-slate-900 border border-slate-700 rounded-md p-1.5 text-slate-100 text-xs font-mono text-emerald-400" />
+                </div>
+
+                <div className="grid grid-cols-3 items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input type="checkbox" checked={formData.betelNutChecked} onChange={(e) => setFormData({ ...formData, betelNutChecked: e.target.checked })} className="rounded bg-slate-800 border-slate-700 text-blue-600 focus:ring-0" />
+                    Betel Nut Chewing:
+                  </label>
+                  <input type="text" placeholder="Amount, Frequency & Duration..." value={formData.betelNutSpecified} onChange={(e) => setFormData({ ...formData, betelNutSpecified: e.target.value })} className="col-span-2 bg-slate-900 border border-slate-700 rounded-md p-1.5 text-slate-100 text-xs font-mono text-emerald-400" />
+                </div>
+
+              </div>
+            </div>
+
           </div>
 
           <div className="pt-4 border-t border-slate-800">
@@ -434,12 +570,15 @@ export default function App() {
                 ✓ Record successfully committed to Dental EHR Database!
               </p>
             )}
+            
+			{/* REPLACE THIS BUTTON AT LINE 396 */}
             <button 
-              onClick={() => setSavedSuccess(true)}
+              onClick={handleSaveDatabase}
               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-lg flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-950/50"
             >
               <CheckCircle className="w-5 h-5"/> Confirm & Push Record to Database
             </button>
+			
           </div>
         </section>
       </main>
