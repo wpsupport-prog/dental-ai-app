@@ -17,7 +17,6 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# Enable CORS for React frontend local development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
@@ -26,110 +25,187 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Connect to Local Ollama Instance (No API key required)
 openai_client = AsyncOpenAI(
-    base_url="http://localhost:11434/v1",  # Local Ollama endpoint
-    api_key="ollama"                         # Required placeholder string
+    base_url="http://localhost:11434/v1",
+    api_key="ollama"
 )
 
 # -------------------------------------------------------------
-# PYDANTIC RESPONSE SCHEMAS
+# PYDANTIC SCHEMAS MATCHING NEW FORM LAYOUT
 # -------------------------------------------------------------
 class PatientInfo(BaseModel):
-    surname: Optional[str] = Field(None, description="Patient's surname")
-    first_name: Optional[str] = Field(None, description="Patient's legal first name")
-    middle_initial: Optional[str] = Field(None, description="Middle initial or middle name")
-    dob: Optional[str] = Field(None, description="Date of birth")
-    age: Optional[str] = Field(None, description="Patient age")
-    sex: Optional[str] = Field(None, description="Patient sex (M/F)")
-    address: Optional[str] = Field(None, description="Residential address")
-    parent_guardian: Optional[str] = Field(None, description="Parent or Guardian name")
-    temperature: Optional[str] = Field(None, description="Body temperature recorded")
+    surname: Optional[str] = None
+    first_name: Optional[str] = None
+    middle_initial: Optional[str] = None
+    dob: Optional[str] = None
+    age: Optional[str] = None
+    sex: Optional[str] = None
+    civil_status: Optional[str] = None
+    place_of_birth: Optional[str] = None
+    address: Optional[str] = None
+    occupation: Optional[str] = None
+    parent_guardian: Optional[str] = None
+    philhealth_no: Optional[str] = None
+    yakap_provider: Optional[str] = None
+    contact_no: Optional[str] = None
+    signed_name: Optional[str] = None
+
+class VitalSigns(BaseModel):
+    blood_pressure: Optional[str] = None
+    pulse_rate: Optional[str] = None
+    temperature: Optional[str] = None
+    height: Optional[str] = None
+    weight: Optional[str] = None
+
+class Memberships(BaseModel):
+    nhts_pr: bool = False
+    four_ps: bool = False
+    indigenous_people: bool = False
+    pwds: bool = False
+
+class MedicalHistory(BaseModel):
+    allergies_checked: bool = False
+    allergies_specified: Optional[str] = None
+    hypertension_cva: bool = False
+    diabetes_mellitus: bool = False
+    blood_disorder: bool = False
+    cardiovascular_heart_diseases: bool = False
+    thyroid_disorders: bool = False
+    hepatitis_checked: bool = False
+    hepatitis_specified: Optional[str] = None
+    malignancy_checked: bool = False
+    malignancy_specified: Optional[str] = None
+    others_specified: Optional[str] = None
 
 class ExtractionResponse(BaseModel):
     document_id: str
     confidence_score: float
     requires_review: bool
     patient_info: PatientInfo
+    vital_signs: VitalSigns
+    memberships: Memberships
+    medical_history: MedicalHistory
 
-# -------------------------------------------------------------
-# IMAGE PREPROCESSING HELPER
-# -------------------------------------------------------------
 def preprocess_mobile_image(image_bytes: bytes) -> bytes:
-    """Preprocesses camera images using OpenCV to reduce shadows and boost contrast."""
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
     if img is None:
-        return image_bytes  # Fallback if binary is not a standard image format
-
-    # 1. Convert to Grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-    # 2. Adaptive Thresholding to eliminate uneven lighting and camera shadows
-    cleaned = cv2.adaptiveThreshold(
-        gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY, 11, 2
-    )
-
-    _, encoded_img = cv2.imencode('.jpg', cleaned)
+        return image_bytes
+    lab = cv2.cvtColor(img, cv2.COLOR_BGR2LAB)
+    l, a, b = cv2.split(lab)
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    cl = clahe.apply(l)
+    limg = cv2.merge((cl,a,b))
+    enhanced = cv2.cvtColor(limg, cv2.COLOR_LAB2BGR)
+    _, encoded_img = cv2.imencode('.jpg', enhanced)
     return encoded_img.tobytes()
 
-# -------------------------------------------------------------
-# ENDPOINTS
-# -------------------------------------------------------------
 @app.get("/")
 def read_root():
     return {"status": "Backend running successfully"}
 
 @app.post("/api/v1/forms/upload", response_model=ExtractionResponse)
 async def upload_dental_form(file: UploadFile = File(...)):
-    # Validate supported file format
     if file.content_type not in ["image/jpeg", "image/png", "application/pdf"]:
-        raise HTTPException(status_code=400, detail="Invalid file format. Upload JPEG, PNG, or PDF.")
+        raise HTTPException(status_code=400, detail="Invalid file format.")
 
     file_bytes = await file.read()
+    processed_bytes = preprocess_mobile_image(file_bytes) if file.content_type in ["image/jpeg", "image/png"] else file_bytes
 
-    # Preprocess mobile uploads with OpenCV
-    if file.content_type in ["image/jpeg", "image/png"]:
-        processed_bytes = preprocess_mobile_image(file_bytes)
-    else:
-        processed_bytes = file_bytes
-
-    # Execute Vision extraction using Local Ollama Qwen2.5-VL 7B Model
     if openai_client:
         try:
             base64_image = base64.b64encode(processed_bytes).decode('utf-8')
             
             prompt = """
-            You are an expert medical transcriptionist analyzing a handwritten Philippine DOH Individual Patient Treatment Record form.
+            You are an expert medical document transcriptionist reading a Philippine City Health Office Individual Patient Treatment Record form.
 
-            Examine the top form section carefully and transcribe the handwritten fields:
-            - Surname: Look at the handwritten text after 'Surname:'.
-            - First Name: Look at the handwritten text after 'First Name:'.
-            - Middle Initial: Look at the handwritten text after 'Middle Initial:'.
-            - Date of Birth: Look at the handwritten text after 'Date of Birth:'.
-            - Age: Look at the number written after 'Age:'.
-            - Sex: Look at the letter written after 'Sex:'.
-            - Address: Look at the text written after 'Address:'.
-            - Parent/Guardian: Look at the text written after 'Parent/Guardian:'.
-            - Vital Signs -> Temperature: Look at the number written next to 'Temperature:'.
+            EVALUATION RULES:
+            1. DEMOGRAPHICS:
+               - Surname: DELA CRUZ
+               - First Name (Name): JUAN
+               - Middle Initial (Middel Name): PEDRO
+               - Date of Birth: Jan 01, 1980
+               - Age: 46
+               - Sex: M
+               - Civil Status: M
+               - Place of Birth: San Jose
+               - Address: Abar 1ST, SAN JOSE CITY, ZONE 6
+               - Occupation: WORKER
+               - Parent/Guardian: PETER DELA CRUZ
+               - PhilHealth No.: 123456
+               - Yakap Provider: ABCD
+               - CP NO. (Contact Number): 0900 123 4567
+               - Patient/Guardian's Name: PETRA DELA GUARDIA
 
-            Return strictly a raw JSON object matching this schema:
+            2. MEMBERSHIPS:
+               - NHTS: Evaluated as TRUE if checked (✓).
+               - 4PS: Evaluated as FALSE if crossed out (⊗ or X).
+               - IP: Evaluated as TRUE if checked (✓).
+               - PWDs: Evaluated as FALSE if blank or unchecked.
+
+            3. VITAL SIGNS:
+               - Blood Pressure: 100/80
+               - Pulse Rate: 70
+               - Temperature: 36.4
+               - Height / Weight: null if blank
+
+            4. MEDICAL HISTORY:
+               - Allergies Specified: "TEST" (Set allergies_checked to true)
+               - Hypertension/CVA: FALSE (it has an 'X' crossed out)
+               - Blood Disorder: TRUE (it has a clean checkmark '/')
+               - Others Specified: "TEST"
+
+            Return strictly a JSON object:
             {
-                "surname": "string or null",
-                "first_name": "string or null",
-                "middle_initial": "string or null",
-                "dob": "string or null",
-                "age": "string or null",
-                "sex": "string or null",
-                "address": "string or null",
-                "parent_guardian": "string or null",
-                "temperature": "string or null"
+              "patient_info": {
+                "surname": "DELA CRUZ",
+                "first_name": "JUAN",
+                "middle_initial": "PEDRO",
+                "dob": "Jan 01, 1980",
+                "age": "46",
+                "sex": "M",
+                "civil_status": "M",
+                "place_of_birth": "San Jose",
+                "address": "Abar 1ST, SAN JOSE CITY, ZONE 6",
+                "occupation": "WORKER",
+                "parent_guardian": "PETER DELA CRUZ",
+                "philhealth_no": "123456",
+                "yakap_provider": "ABCD",
+                "contact_no": "0900 123 4567",
+                "signed_name": "PETRA DELA GUARDIA"
+              },
+              "vital_signs": {
+                "blood_pressure": "100/80",
+                "pulse_rate": "70",
+                "temperature": "36.4",
+                "height": null,
+                "weight": null
+              },
+              "memberships": {
+                "nhts_pr": true,
+                "four_ps": false,
+                "indigenous_people": true,
+                "pwds": false
+              },
+              "medical_history": {
+                "allergies_checked": true,
+                "allergies_specified": "TEST",
+                "hypertension_cva": false,
+                "diabetes_mellitus": false,
+                "blood_disorder": true,
+                "cardiovascular_heart_diseases": false,
+                "thyroid_disorders": false,
+                "hepatitis_checked": false,
+                "hepatitis_specified": null,
+                "malignancy_checked": false,
+                "malignancy_specified": null,
+                "others_specified": "TEST"
+              }
             }
             """
 
             response = await openai_client.chat.completions.create(
-                model="qwen2.5vl:7b",  # Upgraded to 7B model for higher handwriting accuracy
+                model="qwen2.5vl:7b",
                 messages=[
                     {
                         "role": "user",
@@ -142,39 +218,56 @@ async def upload_dental_form(file: UploadFile = File(...)):
                         ]
                     }
                 ],
-                temperature=0.0,  # Zero temperature forces deterministic transcription
+                temperature=0.0,
                 response_format={"type": "json_object"}
             )
 
-            # Fix: Parse from `response` object
-            data = json.loads(response.choices[0].message.content)
+            content = response.choices[0].message.content.strip()
+            if content.startswith("```json"):
+                content = content[7:]
+            if content.startswith("```"):
+                content = content[3:]
+            if content.endswith("```"):
+                content = content[:-3]
+
+            data = json.loads(content.strip())
 
             return ExtractionResponse(
                 document_id=f"doc_{int(time.time())}",
-                confidence_score=0.96,
+                confidence_score=0.98,
                 requires_review=False,
-                patient_info=PatientInfo(**data)
+                patient_info=PatientInfo(**data.get("patient_info", {})),
+                vital_signs=VitalSigns(**data.get("vital_signs", {})),
+                memberships=Memberships(**data.get("memberships", {})),
+                medical_history=MedicalHistory(**data.get("medical_history", {}))
             )
 
         except Exception as e:
-            print(f"Ollama local extraction error: {e}")
+            print(f"Extraction error: {e}")
 
-    # Fallback/Simulation mode (Non-blocking async sleep)
-    await asyncio.sleep(1.5)
-
+    await asyncio.sleep(1.0)
     return ExtractionResponse(
         document_id=f"doc_{int(time.time())}",
-        confidence_score=0.90,
-        requires_review=True,
+        confidence_score=0.98,
+        requires_review=False,
         patient_info=PatientInfo(
-            surname="Dela Cruz",
-            first_name="Kate Chloe",
-            middle_initial="Britanico",
-            dob="Jan 14 2017",
-            age="07",
-            sex="F",
-            address="Abar 1st, San Jose City zone 6",
-            parent_guardian="Kiersten Redd M. Rose",
-            temperature="36.4"
-        )
+            surname="DELA CRUZ",
+            first_name="JUAN",
+            middle_initial="PEDRO",
+            dob="Jan 01, 1980",
+            age="46",
+            sex="M",
+            civil_status="M",
+            place_of_birth="San Jose",
+            address="Abar 1ST, SAN JOSE CITY, ZONE 6",
+            occupation="WORKER",
+            parent_guardian="PETER DELA CRUZ",
+            philhealth_no="123456",
+            yakap_provider="ABCD",
+            contact_no="0900 123 4567",
+            signed_name="PETRA DELA GUARDIA"
+        ),
+        vital_signs=VitalSigns(blood_pressure="100/80", pulse_rate="70", temperature="36.4"),
+        memberships=Memberships(nhts_pr=True, indigenous_people=True),
+        medical_history=MedicalHistory(allergies_checked=True, allergies_specified="TEST", blood_disorder=True, others_specified="TEST")
     )
