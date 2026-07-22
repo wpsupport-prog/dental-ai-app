@@ -260,6 +260,44 @@ export const RecordsRetrievalTab: React.FC = () => {
                         </div>
 
                         <div>
+                          <label className="text-slate-400 block mb-1">Date of Birth:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.dob || ''}
+                              onChange={(e) => handleFieldChange('dob', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100">{data.dob || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Age / Sex:</label>
+                          {isEditing ? (
+                            <div className="flex gap-2">
+                              <input
+                                type="text"
+                                placeholder="Age"
+                                value={data.age || ''}
+                                onChange={(e) => handleFieldChange('age', e.target.value)}
+                                className="w-1/2 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Sex"
+                                value={data.sex || ''}
+                                onChange={(e) => handleFieldChange('sex', e.target.value)}
+                                className="w-1/2 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                              />
+                            </div>
+                          ) : (
+                            <p className="text-slate-100">{data.age} / {data.sex}</p>
+                          )}
+                        </div>
+
+                        <div>
                           <label className="text-slate-400 block mb-1">Place of Birth:</label>
                           {isEditing ? (
                             <input
@@ -270,6 +308,20 @@ export const RecordsRetrievalTab: React.FC = () => {
                             />
                           ) : (
                             <p className="text-slate-100">{data.place_of_birth || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Address:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.address || ''}
+                              onChange={(e) => handleFieldChange('address', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100">{data.address || 'N/A'}</p>
                           )}
                         </div>
 
@@ -423,7 +475,7 @@ export const RecordsRetrievalTab: React.FC = () => {
                         <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
                           <HeartPulse className="w-4 h-4" /> Vital Signs
                         </div>
-                        <div className="grid grid-cols-3 gap-2 text-xs bg-slate-900/70 p-3.5 rounded-lg border border-slate-800/80 font-mono">
+                        <div className="grid grid-cols-5 gap-2 text-xs bg-slate-900/70 p-3.5 rounded-lg border border-slate-800/80 font-mono">
                           <div>
                             <label className="text-slate-400 block mb-1">BP:</label>
                             {isEditing ? (
@@ -465,6 +517,34 @@ export const RecordsRetrievalTab: React.FC = () => {
                               <p className="text-slate-100 font-bold">{data.temperature ? `${data.temperature} °C` : 'N/A'}</p>
                             )}
                           </div>
+
+                          <div>
+                            <label className="text-slate-400 block mb-1">HT (Height):</label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={data.height || ''}
+                                onChange={(e) => handleFieldChange('height', e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                              />
+                            ) : (
+                              <p className="text-slate-100 font-bold">{data.height || 'N/A'}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="text-slate-400 block mb-1">WT (Weight):</label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={data.weight || ''}
+                                onChange={(e) => handleFieldChange('weight', e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                              />
+                            ) : (
+                              <p className="text-slate-100 font-bold">{data.weight || 'N/A'}</p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -474,8 +554,9 @@ export const RecordsRetrievalTab: React.FC = () => {
                       <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
                         <Stethoscope className="w-4 h-4" /> Medical History
                       </div>
-                      <div className="grid grid-cols-3 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
-                        <div className="col-span-3 grid grid-cols-3 items-center gap-2">
+                      <div className="grid grid-cols-2 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
+                        {/* Allergies */}
+                        <div className="col-span-2 grid grid-cols-3 items-center gap-2 pb-1 border-b border-slate-800/50">
                           <label className="flex items-center gap-2 cursor-pointer">
                             <input
                               type="checkbox"
@@ -484,17 +565,18 @@ export const RecordsRetrievalTab: React.FC = () => {
                               onChange={(e) => handleFieldChange('allergies_checked', e.target.checked)}
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
-                            <span className="text-slate-300">Allergies Specified:</span>
+                            <span className="text-slate-300">Allergies:</span>
                           </label>
                           {isEditing ? (
                             <input
                               type="text"
+                              placeholder="Specified details..."
                               value={data.allergies_specified || ''}
                               onChange={(e) => handleFieldChange('allergies_specified', e.target.value)}
-                              className="col-span-2 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-emerald-400 font-mono"
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.allergies_specified || 'None'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.allergies_checked ? (data.allergies_specified || 'Yes') : 'No'}</p>
                           )}
                         </div>
 
@@ -530,10 +612,323 @@ export const RecordsRetrievalTab: React.FC = () => {
                           />
                           <span className="text-slate-300">Blood Disorders</span>
                         </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            disabled={!isEditing}
+                            checked={!!data.cardiovascular_heart_diseases}
+                            onChange={(e) => handleFieldChange('cardiovascular_heart_diseases', e.target.checked)}
+                            className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                          />
+                          <span className="text-slate-300">Cardiovascular / Heart</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            disabled={!isEditing}
+                            checked={!!data.thyroid_disorders}
+                            onChange={(e) => handleFieldChange('thyroid_disorders', e.target.checked)}
+                            className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                          />
+                          <span className="text-slate-300">Thyroid Disorders</span>
+                        </label>
+
+                        {/* Hepatitis */}
+                        <div className="col-span-2 grid grid-cols-3 items-center gap-2 pt-1 border-t border-slate-800/50">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.hepatitis_checked}
+                              onChange={(e) => handleFieldChange('hepatitis_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Hepatitis:</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Type specified..."
+                              value={data.hepatitis_specified || ''}
+                              onChange={(e) => handleFieldChange('hepatitis_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.hepatitis_checked ? (data.hepatitis_specified || 'Yes') : 'No'}</p>
+                          )}
+                        </div>
+
+                        {/* Malignancy */}
+                        <div className="col-span-2 grid grid-cols-3 items-center gap-2 pt-1">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.malignancy_checked}
+                              onChange={(e) => handleFieldChange('malignancy_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Malignancy:</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Details specified..."
+                              value={data.malignancy_specified || ''}
+                              onChange={(e) => handleFieldChange('malignancy_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.malignancy_checked ? (data.malignancy_specified || 'Yes') : 'No'}</p>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    {/* 4. Oral Health Condition Chart Logs (Saved Group View & Editing) */}
+                    {/* 4. History of Hospitalization */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
+                        <Activity className="w-4 h-4" /> History of Previous Hospitalization
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
+                        {/* Medical Admission */}
+                        <div className="grid grid-cols-3 items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.medical_hospitalization_checked}
+                              onChange={(e) => handleFieldChange('medical_hospitalization_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Medical (Last Admission & Cause):</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Details..."
+                              value={data.medical_hospitalization_specified || ''}
+                              onChange={(e) => handleFieldChange('medical_hospitalization_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.medical_hospitalization_checked ? (data.medical_hospitalization_specified || 'Yes') : 'None'}</p>
+                          )}
+                        </div>
+
+                        {/* Surgical */}
+                        <div className="grid grid-cols-3 items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.surgical_checked}
+                              onChange={(e) => handleFieldChange('surgical_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Surgical (Post-Operative):</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Details..."
+                              value={data.surgical_specified || ''}
+                              onChange={(e) => handleFieldChange('surgical_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.surgical_checked ? (data.surgical_specified || 'Yes') : 'None'}</p>
+                          )}
+                        </div>
+
+                        {/* Blood Transfusion */}
+                        <div className="grid grid-cols-3 items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.blood_transfusion_checked}
+                              onChange={(e) => handleFieldChange('blood_transfusion_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Blood Transfusion (Month & Year):</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Details..."
+                              value={data.blood_transfusion_specified || ''}
+                              onChange={(e) => handleFieldChange('blood_transfusion_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.blood_transfusion_checked ? (data.blood_transfusion_specified || 'Yes') : 'None'}</p>
+                          )}
+                        </div>
+
+                        {/* Tattoo */}
+                        <div className="grid grid-cols-3 items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.tattoo_checked}
+                              onChange={(e) => handleFieldChange('tattoo_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Tattoo:</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Details..."
+                              value={data.tattoo_specified || ''}
+                              onChange={(e) => handleFieldChange('tattoo_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.tattoo_checked ? (data.tattoo_specified || 'Yes') : 'None'}</p>
+                          )}
+                        </div>
+
+                        {/* Others */}
+                        <div className="grid grid-cols-3 items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.others_checked}
+                              onChange={(e) => handleFieldChange('others_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Others (Please specify):</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Details..."
+                              value={data.others_specified || ''}
+                              onChange={(e) => handleFieldChange('others_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.others_checked ? (data.others_specified || 'Yes') : 'None'}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 5. Dietary Habits / Social History */}
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
+                        <Utensils className="w-4 h-4" /> Dietary Habits / Social History
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
+                        {/* Sugar Beverages */}
+                        <div className="grid grid-cols-3 items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.sugar_beverages_checked}
+                              onChange={(e) => handleFieldChange('sugar_beverages_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Sugar Beverages/Food:</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Amount, Frequency & Duration..."
+                              value={data.sugar_beverages_specified || ''}
+                              onChange={(e) => handleFieldChange('sugar_beverages_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.sugar_beverages_checked ? (data.sugar_beverages_specified || 'Yes') : 'No'}</p>
+                          )}
+                        </div>
+
+                        {/* Alcohol */}
+                        <div className="grid grid-cols-3 items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.use_alcohol_checked}
+                              onChange={(e) => handleFieldChange('use_alcohol_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Use of Alcohol:</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Amount, Frequency & Duration..."
+                              value={data.use_alcohol_specified || ''}
+                              onChange={(e) => handleFieldChange('use_alcohol_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.use_alcohol_checked ? (data.use_alcohol_specified || 'Yes') : 'No'}</p>
+                          )}
+                        </div>
+
+                        {/* Tobacco */}
+                        <div className="grid grid-cols-3 items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.use_tobacco_checked}
+                              onChange={(e) => handleFieldChange('use_tobacco_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Use of Tobacco:</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Amount, Frequency & Duration..."
+                              value={data.use_tobacco_specified || ''}
+                              onChange={(e) => handleFieldChange('use_tobacco_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.use_tobacco_checked ? (data.use_tobacco_specified || 'Yes') : 'No'}</p>
+                          )}
+                        </div>
+
+                        {/* Betel Nut */}
+                        <div className="grid grid-cols-3 items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.betel_nut_checked}
+                              onChange={(e) => handleFieldChange('betel_nut_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Betel Nut Chewing:</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              placeholder="Amount, Frequency & Duration..."
+                              value={data.betel_nut_specified || ''}
+                              onChange={(e) => handleFieldChange('betel_nut_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.betel_nut_checked ? (data.betel_nut_specified || 'Yes') : 'No'}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 6. Oral Health Condition Chart Logs (Saved Group View & Editing) */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
                         <Stethoscope className="w-4 h-4" /> Oral Health Condition Chart Logs

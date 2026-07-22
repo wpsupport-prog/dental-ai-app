@@ -56,6 +56,8 @@ export default function App() {
     bloodPressure: '',
     pulseRate: '',
     temperature: '',
+	height: '', // <-- Added
+    weight: '', // <-- Added
 
     // Memberships
     nhtsPr: false,
@@ -165,6 +167,8 @@ export default function App() {
         bloodPressure: vitals.blood_pressure || prev.bloodPressure,
         pulseRate: vitals.pulse_rate || prev.pulseRate,
         temperature: vitals.temperature || prev.temperature,
+		height: vitals.height || prev.height,   // <-- Added
+        weight: vitals.weight || prev.weight,   // <-- Added
 
         // Memberships (Reads 'X' marks and '✓' marks correctly)
         nhtsPr: mems.nhts_pr ? true : prev.nhtsPr,
@@ -245,6 +249,8 @@ export default function App() {
           blood_pressure: formData.bloodPressure,
           pulse_rate: formData.pulseRate,
           temperature: formData.temperature,
+		  height: formData.height,  // <-- Added
+          weight: formData.weight,  // <-- Added
         },
         memberships: {
           nhts_pr: formData.nhtsPr,
@@ -448,25 +454,33 @@ export default function App() {
                 </div>
 
                 {/* Vital Signs */}
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-blue-400 border-b border-slate-800/80 pb-1">
-                    <HeartPulse className="w-4 h-4"/> Vital Signs
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Blood Pressure</label>
-                      <input type="text" value={formData.bloodPressure} onChange={(e) => setFormData({ ...formData, bloodPressure: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm font-mono" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Pulse Rate</label>
-                      <input type="text" value={formData.pulseRate} onChange={(e) => setFormData({ ...formData, pulseRate: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm font-mono" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Temperature (°C)</label>
-                      <input type="text" value={formData.temperature} onChange={(e) => setFormData({ ...formData, temperature: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm font-mono" />
-                    </div>
-                  </div>
-                </div>
+				<div className="space-y-3">
+				  <div className="flex items-center gap-2 text-sm font-semibold text-blue-400 border-b border-slate-800/80 pb-1">
+					<HeartPulse className="w-4 h-4"/> Vital Signs
+				  </div>
+				  <div className="grid grid-cols-5 gap-3">
+					<div>
+					  <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Blood Pressure</label>
+					  <input type="text" value={formData.bloodPressure} onChange={(e) => setFormData({ ...formData, bloodPressure: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm font-mono" />
+					</div>
+					<div>
+					  <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Pulse Rate</label>
+					  <input type="text" value={formData.pulseRate} onChange={(e) => setFormData({ ...formData, pulseRate: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm font-mono" />
+					</div>
+					<div>
+					  <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Temp (°C)</label>
+					  <input type="text" value={formData.temperature} onChange={(e) => setFormData({ ...formData, temperature: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm font-mono" />
+					</div>
+					<div>
+					  <label className="block text-xs font-medium text-slate-400 uppercase mb-1">HT (Height)</label>
+					  <input type="text" value={formData.height} onChange={(e) => setFormData({ ...formData, height: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm font-mono" placeholder="cm / ft" />
+					</div>
+					<div>
+					  <label className="block text-xs font-medium text-slate-400 uppercase mb-1">WT (Weight)</label>
+					  <input type="text" value={formData.weight} onChange={(e) => setFormData({ ...formData, weight: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm font-mono" placeholder="kg / lbs" />
+					</div>
+				  </div>
+				</div>
 
                 {/* Medical History */}
                 <div className="space-y-3">
