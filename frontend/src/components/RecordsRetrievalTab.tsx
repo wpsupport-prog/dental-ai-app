@@ -5,6 +5,8 @@ import DentalChart from './DentalChart';
 
 import { filterPatientRecords } from '../utils/recordFilters';
 
+import OralHealthConditionSummary from './OralHealthConditionSummary';
+
 export const RecordsRetrievalTab: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -935,24 +937,36 @@ export const RecordsRetrievalTab: React.FC = () => {
                       </div>
 
                       {isEditing ? (
-                        <DentalChart
-                          visits={data.dental_chart || []}
-                          setVisits={(updatedVisits) =>
-                            handleFieldChange(
-                              'dental_chart',
-                              typeof updatedVisits === 'function' ? updatedVisits(data.dental_chart || []) : updatedVisits
-                            )
-                          }
-                        />
+                        <>
+                          <DentalChart
+                            visits={data.dental_chart || []}
+                            setVisits={(updatedVisits) =>
+                              handleFieldChange(
+                                'dental_chart',
+                                typeof updatedVisits === 'function' ? updatedVisits(data.dental_chart || []) : updatedVisits
+                              )
+                            }
+                          />
+
+                          {/* 2-Column Summary Block (Live reactive in Edit Mode) */}
+                          <OralHealthConditionSummary visits={data.dental_chart || []} />
+                        </>
                       ) : (
-                        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
-                          {(data.dental_chart && data.dental_chart.length > 0) ? (
-                            <DentalChart
-                              visits={data.dental_chart}
-                              setVisits={() => {}} // Read-only mode
-                            />
+                        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-4">
+                          {data.dental_chart && data.dental_chart.length > 0 ? (
+                            <>
+                              <DentalChart
+                                visits={data.dental_chart}
+                                setVisits={() => {}} // Read-only mode
+                              />
+
+                              {/* 2-Column Summary Block (Read-Only Mode) */}
+                              <OralHealthConditionSummary visits={data.dental_chart} />
+                            </>
                           ) : (
-                            <p className="text-xs text-slate-500 text-center py-4">No oral health chart logs recorded for this patient.</p>
+                            <p className="text-xs text-slate-500 text-center py-4">
+                              No oral health chart logs recorded for this patient.
+                            </p>
                           )}
                         </div>
                       )}

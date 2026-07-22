@@ -7,6 +7,8 @@ import DentalChart from './components/DentalChart';
 import { TabNavigation } from './components/TabNavigation';
 import { RecordsRetrievalTab } from './components/RecordsRetrievalTab';
 
+import OralHealthConditionSummary from './components/OralHealthConditionSummary';
+
 export type ActiveTab = 'intake' | 'records';
 
 // Define visit record type locally to prevent Vite runtime export errors
@@ -629,6 +631,11 @@ export default function App() {
 
                 {/* Interactive Multi-Visit Oral Health Condition Chart */}
                 <DentalChart visits={visits} setVisits={setVisits} />
+				
+				{/* Read-Only 2-Column Summary Blocks (Section A & B) */}
+				<OralHealthConditionSummary visits={visits} />
+				
+				
               </div>
 
               <div className="pt-4 border-t border-slate-800">
