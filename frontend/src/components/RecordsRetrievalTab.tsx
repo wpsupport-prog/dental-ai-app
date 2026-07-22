@@ -3,6 +3,8 @@ import { Search, RefreshCw, User, ShieldCheck, HeartPulse, Stethoscope, Activity
 import axios from 'axios';
 import DentalChart from './DentalChart';
 
+import { filterPatientRecords } from '../utils/recordFilters';
+
 export const RecordsRetrievalTab: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -20,9 +22,9 @@ export const RecordsRetrievalTab: React.FC = () => {
     try {
       const res = await axios.get('http://localhost:8000/api/v1/forms/records');
       setRecords(res.data || []);
-      if (res.data && res.data.length > 0 && expandedRecordId === null) {
-        setExpandedRecordId(res.data[0].id);
-      }
+      
+	  
+	  
     } catch (err) {
       console.error('Error fetching patient records:', err);
     } finally {
@@ -80,10 +82,8 @@ export const RecordsRetrievalTab: React.FC = () => {
     }
   };
 
-  const filteredRecords = records.filter((r) => {
-    const fullName = `${r.first_name || ''} ${r.surname || ''} ${r.middle_initial || ''}`.toLowerCase();
-    return fullName.includes(searchQuery.toLowerCase()) || (r.philhealth_no || '').includes(searchQuery);
-  });
+	const filteredRecords = filterPatientRecords(records, searchQuery);
+	
 
   return (
     <div className="space-y-6">
@@ -91,13 +91,13 @@ export const RecordsRetrievalTab: React.FC = () => {
       <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800">
         <div className="relative w-96">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search patient name or PhilHealth ID..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
-          />
+			<input
+			type="text"
+			placeholder="Search patient name, mobile no, or PhilHealth ID..."
+			value={searchQuery}
+			onChange={(e) => setSearchQuery(e.target.value)}
+			className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+		  />
         </div>
 
         <button
