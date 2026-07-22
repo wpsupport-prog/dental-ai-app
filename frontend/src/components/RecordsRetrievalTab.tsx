@@ -1,11 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RefreshCw, User, ShieldCheck, HeartPulse, Stethoscope, Activity, Utensils, ChevronDown, ChevronUp, Edit2, Save, X, Check } from 'lucide-react';
+import { Search, RefreshCw, User, ShieldCheck, HeartPulse, Stethoscope, Activity, Utensils, ChevronDown, ChevronUp, Edit2, Save, X, Check, Plus } from 'lucide-react';
 import axios from 'axios';
 import DentalChart from './DentalChart';
-
 import { filterPatientRecords } from '../utils/recordFilters';
-
 import OralHealthConditionSummary from './OralHealthConditionSummary';
+
+// Local PC system date & time helper
+const getLocalPCDateTime = () => {
+  const now = new Date();
+  return now.toLocaleString(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+};
+
+// Convert number index to Roman numerals for return visit chart headers
+const getRomanNumeral = (num: number): string => {
+  const lookup: { [key: string]: number } = {
+    M: 1000, CM: 900, D: 500, CD: 400, C: 100, XC: 90, L: 50, XL: 40, X: 10, IX: 9, V: 5, IV: 4, I: 1
+  };
+  let roman = '';
+  for (const i in lookup) {
+    while (num >= lookup[i]) {
+      roman += i;
+      num -= lookup[i];
+    }
+  }
+  return roman || 'I';
+};
 
 export const RecordsRetrievalTab: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
@@ -24,9 +51,6 @@ export const RecordsRetrievalTab: React.FC = () => {
     try {
       const res = await axios.get('http://localhost:8000/api/v1/forms/records');
       setRecords(res.data || []);
-      
-	  
-	  
     } catch (err) {
       console.error('Error fetching patient records:', err);
     } finally {
@@ -46,7 +70,29 @@ export const RecordsRetrievalTab: React.FC = () => {
   const startEditing = (rec: any) => {
     setEditingRecordId(rec.id);
     setExpandedRecordId(rec.id);
-    setEditFormData({ ...rec });
+
+    // Ensure dental_chart is parsed properly as an array
+    let currentVisits = rec.dental_chart;
+    if (typeof currentVisits === 'string') {
+      try {
+        currentVisits = JSON.parse(currentVisits);
+      } catch {
+        currentVisits = [];
+      }
+    }
+
+    if (!Array.isArray(currentVisits) || currentVisits.length === 0) {
+      currentVisits = [
+        {
+          id: 'visit-1',
+          visitLabel: 'Year I',
+          visitDate: getLocalPCDateTime(),
+          chartData: {},
+        },
+      ];
+    }
+
+    setEditFormData({ ...rec, dental_chart: currentVisits });
   };
 
   const cancelEditing = () => {
@@ -59,6 +105,23 @@ export const RecordsRetrievalTab: React.FC = () => {
       ...prev,
       [field]: value,
     }));
+  };
+
+  // Modular handler to append a new patient return visit chart log
+  const handleAddReturnVisit = () => {
+    const currentVisits = Array.isArray(editFormData.dental_chart) ? editFormData.dental_chart : [];
+    const newVisitIndex = currentVisits.length + 1;
+    const romanLabel = `Year ${getRomanNumeral(newVisitIndex)}`;
+
+    const newVisit = {
+      id: `visit-${Date.now()}`,
+      visitLabel: romanLabel,
+      visitDate: getLocalPCDateTime(),
+      chartData: {},
+    };
+
+    const updatedVisits = [newVisit, ...currentVisits]; // Prepend new visit log
+    handleFieldChange('dental_chart', updatedVisits);
   };
 
   const saveRecordUpdate = async (id: number) => {
@@ -84,8 +147,7 @@ export const RecordsRetrievalTab: React.FC = () => {
     }
   };
 
-	const filteredRecords = filterPatientRecords(records, searchQuery);
-	
+  const filteredRecords = filterPatientRecords(records, searchQuery);
 
   return (
     <div className="space-y-6">
@@ -93,13 +155,13 @@ export const RecordsRetrievalTab: React.FC = () => {
       <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800">
         <div className="relative w-96">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-			<input
-			type="text"
-			placeholder="Search patient name, mobile no, or PhilHealth ID..."
-			value={searchQuery}
-			onChange={(e) => setSearchQuery(e.target.value)}
-			className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
-		  />
+          <input
+            type="text"
+            placeholder="Search patient name, mobile no, or PhilHealth ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
+          />
         </div>
 
         <button
@@ -122,6 +184,16 @@ export const RecordsRetrievalTab: React.FC = () => {
             const isExpanded = expandedRecordId === rec.id;
             const isEditing = editingRecordId === rec.id;
             const data = isEditing ? editFormData : rec;
+
+            // Safe parsing for dental chart visits
+            let displayVisits = data.dental_chart;
+            if (typeof displayVisits === 'string') {
+              try {
+                displayVisits = JSON.parse(displayVisits);
+              } catch {
+                displayVisits = [];
+              }
+            }
 
             return (
               <div
@@ -248,76 +320,62 @@ export const RecordsRetrievalTab: React.FC = () => {
                         </div>
 
                         <div>
-							  <label className="text-slate-400 block mb-1">Civil Status:</label>
-							  {isEditing ? (
-								<input
-								  type="text"
-								  value={data.civil_status || ''}
-								  onChange={(e) => handleFieldChange('civil_status', e.target.value)}
-								  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
-								/>
-							  ) : (
-								<p className="text-slate-100 font-bold">{data.civil_status || 'N/A'}</p>
-							  )}
-							</div>
-
-							<div>
-						  <label className="block text-[10px] font-medium text-slate-400 uppercase mb-1">Date of Birth</label>
-						  <input
-							type="text"
-							value={data.dob || ''}
-							onChange={(e) => handleFieldChange('dob', e.target.value)}
-							className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-slate-100 text-xs"
-						  />
-						</div>
-
-						{/* EDITABLE AGE */}
-						<div>
-						  <label className="block text-[10px] font-medium text-slate-400 uppercase mb-1">Age</label>
-						  <input
-							type="text"
-							value={data.age || ''}
-							onChange={(e) => handleFieldChange('age', e.target.value)}
-							className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-slate-100 text-xs"
-						  />
-						</div>
-
-						{/* EDITABLE SEX DROPDOWN */}
-						<div>
-						  <label className="block text-[10px] font-medium text-slate-400 uppercase mb-1">Sex</label>
-						  <select
-							value={data.sex || ''}
-							onChange={(e) => handleFieldChange('sex', e.target.value)}
-							className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-slate-100 text-xs cursor-pointer"
-						  >
-							<option value="">Select...</option>
-							<option value="M">Male (M)</option>
-							<option value="F">Female (F)</option>
-							<option value="Other">Other</option>
-						  </select>
-						</div>
+                          <label className="text-slate-400 block mb-1">Civil Status:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.civil_status || ''}
+                              onChange={(e) => handleFieldChange('civil_status', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100 font-bold">{data.civil_status || 'N/A'}</p>
+                          )}
+                        </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Age / Sex:</label>
+                          <label className="text-slate-400 block mb-1">Date of Birth:</label>
                           {isEditing ? (
-                            <div className="flex gap-2">
-                              <input
-                                type="text"
-                                placeholder="Age"
-                                value={data.age || ''}
-                                onChange={(e) => handleFieldChange('age', e.target.value)}
-                                className="w-1/2 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                              />
-                              <input
-                                type="text"
-                                placeholder="Sex"
-                                value={data.sex || ''}
-                                onChange={(e) => handleFieldChange('sex', e.target.value)}
-                                className="w-1/2 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                              />
-                            </div>
+                            <input
+                              type="text"
+                              value={data.dob || ''}
+                              onChange={(e) => handleFieldChange('dob', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
                           ) : (
-                            <p className="text-slate-100">{data.age} / {data.sex}</p>
+                            <p className="text-slate-100">{data.dob || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Age:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.age || ''}
+                              onChange={(e) => handleFieldChange('age', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100">{data.age || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Sex:</label>
+                          {isEditing ? (
+                            <select
+                              value={data.sex || ''}
+                              onChange={(e) => handleFieldChange('sex', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 cursor-pointer"
+                            >
+                              <option value="">Select...</option>
+                              <option value="M">Male (M)</option>
+                              <option value="F">Female (F)</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          ) : (
+                            <p className="text-slate-100">{data.sex || 'N/A'}</p>
                           )}
                         </div>
 
@@ -952,38 +1010,89 @@ export const RecordsRetrievalTab: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* 6. Oral Health Condition Chart Logs (Saved Group View & Editing) */}
+                    {/* 6. Oral Health Condition Chart Logs & Interactive Return Visit Canvas */}
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
-                        <Stethoscope className="w-4 h-4" /> Oral Health Condition Chart Logs
+                      <div className="flex justify-between items-center border-b border-slate-800/80 pb-1">
+                        <span className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                          <Stethoscope className="w-4 h-4" /> Oral Health Condition Chart Logs
+                        </span>
+
+                        {/* MODULAR RETURN VISIT BUTTON (ENABLED IN EDIT MODE) */}
+                        {isEditing && (
+                          <button
+                            onClick={handleAddReturnVisit}
+                            className="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs px-3 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer shadow-sm"
+                          >
+                            <Plus className="w-3.5 h-3.5" /> Add Patient Return Visit Chart
+                          </button>
+                        )}
                       </div>
 
                       {isEditing ? (
                         <>
                           <DentalChart
-                            visits={data.dental_chart || []}
+                            visits={displayVisits || []}
                             setVisits={(updatedVisits) =>
                               handleFieldChange(
                                 'dental_chart',
-                                typeof updatedVisits === 'function' ? updatedVisits(data.dental_chart || []) : updatedVisits
+                                typeof updatedVisits === 'function' ? updatedVisits(displayVisits || []) : updatedVisits
                               )
                             }
                           />
 
-                          {/* 2-Column Summary Block (Live reactive in Edit Mode) */}
-                          <OralHealthConditionSummary visits={data.dental_chart || []} />
+                          {/* Live 2-Column Summary Block (Editable) */}
+                          <OralHealthConditionSummary
+                            visits={displayVisits || []}
+                            isEditable={true}
+                            sectionAData={{
+                              orallyFitChild: data.oh_orally_fit_child,
+                              dentalCaries: data.oh_dental_caries,
+                              gingivitis: data.oh_gingivitis,
+                              periodontalDisease: data.oh_periodontal_disease,
+                              debris: data.oh_debris,
+                              calculus: data.oh_calculus,
+                              abnormalGrowth: data.oh_abnormal_growth,
+                              cleftLipPalate: data.oh_cleft_lip_palate,
+                              others: data.oh_others,
+                            }}
+                            onSectionAChange={(updated) => {
+                              handleFieldChange('oh_orally_fit_child', updated.orallyFitChild);
+                              handleFieldChange('oh_dental_caries', updated.dentalCaries);
+                              handleFieldChange('oh_gingivitis', updated.gingivitis);
+                              handleFieldChange('oh_periodontal_disease', updated.periodontalDisease);
+                              handleFieldChange('oh_debris', updated.debris);
+                              handleFieldChange('oh_calculus', updated.calculus);
+                              handleFieldChange('oh_abnormal_growth', updated.abnormalGrowth);
+                              handleFieldChange('oh_cleft_lip_palate', updated.cleftLipPalate);
+                              handleFieldChange('oh_others', updated.others);
+                            }}
+                          />
                         </>
                       ) : (
                         <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-4">
-                          {data.dental_chart && data.dental_chart.length > 0 ? (
+                          {displayVisits && displayVisits.length > 0 ? (
                             <>
                               <DentalChart
-                                visits={data.dental_chart}
+                                visits={displayVisits}
                                 setVisits={() => {}} // Read-only mode
                               />
 
                               {/* 2-Column Summary Block (Read-Only Mode) */}
-                              <OralHealthConditionSummary visits={data.dental_chart} />
+                              <OralHealthConditionSummary
+                                visits={displayVisits}
+                                isEditable={false}
+                                sectionAData={{
+                                  orallyFitChild: data.oh_orally_fit_child,
+                                  dentalCaries: data.oh_dental_caries,
+                                  gingivitis: data.oh_gingivitis,
+                                  periodontalDisease: data.oh_periodontal_disease,
+                                  debris: data.oh_debris,
+                                  calculus: data.oh_calculus,
+                                  abnormalGrowth: data.oh_abnormal_growth,
+                                  cleftLipPalate: data.oh_cleft_lip_palate,
+                                  others: data.oh_others,
+                                }}
+                              />
                             </>
                           ) : (
                             <p className="text-xs text-slate-500 text-center py-4">
