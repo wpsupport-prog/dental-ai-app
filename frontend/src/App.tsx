@@ -9,6 +9,8 @@ import { RecordsRetrievalTab } from './components/RecordsRetrievalTab';
 
 import OralHealthConditionSummary from './components/OralHealthConditionSummary';
 
+import ServicesMonitoringChart, { type ServiceToothData } from './components/ServicesMonitoringChart';
+
 export type ActiveTab = 'intake' | 'records';
 
 // Define visit record type locally to prevent Vite runtime export errors
@@ -118,6 +120,9 @@ export default function App() {
       chartData: {},
     },
   ]);
+  
+  // State to track stacked Services Monitoring Chart inputs
+  const [servicesData, setServicesData] = useState<ServiceToothData>({});
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -315,6 +320,7 @@ export default function App() {
           betel_nut_specified: formData.betelNutSpecified,
         },
         dental_chart: visits,
+		services_monitoring: servicesData, // <-- Added payload
       });
 
       setSavedSuccess(true);
@@ -689,6 +695,12 @@ export default function App() {
 				  isEditable={true}
 				/>
 				
+				{/* Services Monitoring Chart (Paired Stacked Tooth Boxes) */}
+				<ServicesMonitoringChart
+				  data={servicesData}
+				  onChange={setServicesData}
+				  isEditable={true}
+				/>
 				
               </div>
 

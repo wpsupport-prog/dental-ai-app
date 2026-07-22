@@ -5,6 +5,8 @@ import DentalChart from './DentalChart';
 import { filterPatientRecords } from '../utils/recordFilters';
 import OralHealthConditionSummary from './OralHealthConditionSummary';
 
+import ServicesMonitoringChart, { type ServiceToothData } from './ServicesMonitoringChart';
+
 // Local PC system date & time helper
 const getLocalPCDateTime = () => {
   const now = new Date();
@@ -150,7 +152,48 @@ export const RecordsRetrievalTab: React.FC = () => {
   const filteredRecords = filterPatientRecords(records, searchQuery);
 
   return (
-    <div className="space-y-6">
+    
+	<div className="space-y-6 relative">
+		  {/* GLOBAL FLOATING EDIT HEADER (PINNED TO TOP OF VIEWPORT) */}
+		  {editingRecordId !== null && (
+			<div className="sticky top-2 z-50 bg-slate-950/95 backdrop-blur-md border border-blue-500/80 p-4 rounded-xl shadow-2xl flex justify-between items-center ring-1 ring-blue-500/50 animate-in fade-in slide-in-from-top-2">
+			  <div className="flex items-center gap-3">
+				<div className="p-2 bg-blue-900/60 border border-blue-600/80 rounded-lg text-blue-400">
+				  <User className="w-5 h-5" />
+				</div>
+				<div>
+				  <div className="flex items-center gap-2">
+					<span className="text-xs font-bold text-amber-400 font-mono uppercase bg-amber-950/80 border border-amber-800/80 px-2 py-0.5 rounded">
+					  Active Editing Mode
+					</span>
+					<span className="text-xs font-mono text-blue-400 font-bold">{editFormData.document_id}</span>
+				  </div>
+				  <h3 className="font-bold text-sm text-slate-100 uppercase tracking-wide mt-1">
+					Editing Record: {editFormData.surname}, {editFormData.first_name} {editFormData.middle_initial}
+				  </h3>
+				</div>
+			  </div>
+
+			  <div className="flex items-center gap-3">
+				<button
+				  type="button"
+				  onClick={() => saveRecordUpdate(editingRecordId)}
+				  disabled={saving}
+				  className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-950/80 hover:scale-105 active:scale-95"
+				>
+				  <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
+				</button>
+				<button
+				  type="button"
+				  onClick={cancelEditing}
+				  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs transition cursor-pointer border border-slate-700"
+				>
+				  <X className="w-4 h-4" /> Cancel
+				</button>
+			  </div>
+			</div>
+		  )}
+	
       {/* Search & Action Bar */}
       <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800">
         <div className="relative w-96">
@@ -194,18 +237,28 @@ export const RecordsRetrievalTab: React.FC = () => {
                 displayVisits = [];
               }
             }
+			
+			// Safe parsing for Services Monitoring Chart data
+            let displayServices = data.services_monitoring;
+            if (typeof displayServices === 'string') {
+              try {
+                displayServices = JSON.parse(displayServices);
+              } catch {
+                displayServices = {};
+              }
+            }
 
             return (
               <div
                 key={rec.id}
-                className={`bg-slate-950 border rounded-xl overflow-hidden transition ${
+                className={`bg-slate-950 border rounded-xl transition relative ${
                   isEditing ? 'border-blue-500 ring-1 ring-blue-500/50' : 'border-slate-800'
                 }`}
               >
-                {/* Header Summary Bar */}
+                {/* FIXED / STICKY HEADER BAR DURING SCROLL */}
                 <div
                   onClick={() => toggleExpand(rec.id)}
-                  className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-900/60 transition"
+                  className="p-5 flex justify-between items-center cursor-pointer hover:bg-slate-900/90 transition sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-xl"
                 >
                   <div className="flex items-center gap-3">
                     <div className="p-2 bg-blue-950 border border-blue-800 rounded-lg text-blue-400">
@@ -240,15 +293,15 @@ export const RecordsRetrievalTab: React.FC = () => {
                         <button
                           onClick={() => saveRecordUpdate(rec.id)}
                           disabled={saving}
-                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-emerald-950/50 hover:scale-105 active:scale-95"
                         >
-                          <Save className="w-3.5 h-3.5" /> {saving ? 'Saving...' : 'Save Changes'}
+                          <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
                         </button>
                         <button
                           onClick={cancelEditing}
-                          className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer"
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs transition cursor-pointer"
                         >
-                          <X className="w-3.5 h-3.5" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     )}
@@ -1067,6 +1120,14 @@ export const RecordsRetrievalTab: React.FC = () => {
                               handleFieldChange('oh_others', updated.others);
                             }}
                           />
+						  
+						 {/* Editable Services Monitoring Chart */}
+                          <ServicesMonitoringChart
+                            data={displayServices || {}}
+                            onChange={(updatedServices) => handleFieldChange('services_monitoring', updatedServices)}
+                            isEditable={isEditing}
+                          />
+						  
                         </>
                       ) : (
                         <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-4">
@@ -1093,6 +1154,13 @@ export const RecordsRetrievalTab: React.FC = () => {
                                   others: data.oh_others,
                                 }}
                               />
+							  
+							  {/* Read-Only Services Monitoring Chart */}
+                              <ServicesMonitoringChart
+                                data={displayServices || {}}
+                                isEditable={false}
+                              />
+							  
                             </>
                           ) : (
                             <p className="text-xs text-slate-500 text-center py-4">
