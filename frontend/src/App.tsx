@@ -2,6 +2,30 @@ import React, { useState } from 'react';
 import { CheckCircle, FileText, Upload, RefreshCw, Check, HeartPulse, User, ShieldCheck, Stethoscope, Activity, Utensils } from 'lucide-react';
 import axios from 'axios';
 
+import DentalChart from './components/DentalChart';
+
+// Define visit record type locally to prevent Vite runtime export errors
+export interface DentalVisitRecord {
+  id: string;
+  visitLabel: string;
+  visitDate: string;
+  chartData: Record<string, string>;
+}
+
+// Local PC system date & time helper
+const getLocalPCDateTime = () => {
+  const now = new Date();
+  return now.toLocaleString(undefined, {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  });
+};
+
 export default function App() {
   const [formData, setFormData] = useState({
     // Patient Info
@@ -73,6 +97,16 @@ export default function App() {
   const [isUploading, setIsUploading] = useState(false);
   const [confidence, setConfidence] = useState<number>(0.98);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  
+  // State to track multi-visit oral health chart logs initialized with PC local date/time
+  const [visits, setVisits] = useState<DentalVisitRecord[]>([
+    {
+      id: 'visit-1',
+      visitLabel: 'Year I',
+      visitDate: getLocalPCDateTime(),
+      chartData: {},
+    },
+  ]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -176,8 +210,8 @@ export default function App() {
       setIsUploading(false);
     }
   };
-
-	// Add this function right after handleUpload
+  
+  // Save full record including multi-visit dental chart entries
   const handleSaveDatabase = async () => {
     try {
       await axios.post('http://localhost:8000/api/v1/forms/save', {
@@ -244,7 +278,8 @@ export default function App() {
           use_tobacco_specified: formData.useTobaccoSpecified,
           betel_nut_checked: formData.betelNutChecked,
           betel_nut_specified: formData.betelNutSpecified,
-        }
+        },
+        dental_chart: visits,
       });
 
       setSavedSuccess(true);
@@ -253,7 +288,7 @@ export default function App() {
       alert('Failed to save record to database.');
     }
   };
-  
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans pb-12">
       <header className="border-b border-slate-800 bg-slate-950 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
@@ -520,7 +555,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* NEW SECTION: Dietary Habits / Social History */}
+            {/* Dietary Habits / Social History */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-blue-400 border-b border-slate-800/80 pb-1">
                 <Utensils className="w-4 h-4"/> Dietary Habits / Social History
@@ -561,6 +596,9 @@ export default function App() {
 
               </div>
             </div>
+			
+            {/* Interactive Multi-Visit Oral Health Condition Chart */}
+            <DentalChart visits={visits} setVisits={setVisits} />
 
           </div>
 
@@ -571,14 +609,12 @@ export default function App() {
               </p>
             )}
             
-			{/* REPLACE THIS BUTTON AT LINE 396 */}
             <button 
               onClick={handleSaveDatabase}
               className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3.5 rounded-lg flex items-center justify-center gap-2 transition shadow-lg shadow-emerald-950/50"
             >
               <CheckCircle className="w-5 h-5"/> Confirm & Push Record to Database
             </button>
-			
           </div>
         </section>
       </main>
