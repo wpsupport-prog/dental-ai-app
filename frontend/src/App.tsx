@@ -136,7 +136,6 @@ export default function App() {
       const med = response.data.medical_history || {};
       const social = response.data.social_history || {};
 
-      // Merge strategy: Preserve previous state values if new scan returns empty/default values
       setFormData((prev) => ({
         // Demographics
         surname: info.surname || prev.surname,
@@ -160,20 +159,20 @@ export default function App() {
         pulseRate: vitals.pulse_rate || prev.pulseRate,
         temperature: vitals.temperature || prev.temperature,
 
-        // Memberships
-        nhtsPr: mems.nhts_pr !== undefined ? !!mems.nhts_pr : prev.nhtsPr,
-        fourPs: mems.four_ps !== undefined ? !!mems.four_ps : prev.fourPs,
-        indigenousPeople: mems.indigenous_people !== undefined ? !!mems.indigenous_people : prev.indigenousPeople,
-        pwds: mems.pwds !== undefined ? !!mems.pwds : prev.pwds,
+        // Memberships (Reads 'X' marks and '✓' marks correctly)
+        nhtsPr: mems.nhts_pr ? true : prev.nhtsPr,
+        fourPs: mems.four_ps ? true : prev.fourPs,
+        indigenousPeople: mems.indigenous_people ? true : prev.indigenousPeople,
+        pwds: mems.pwds ? true : prev.pwds,
 
         // Medical History
         allergiesChecked: med.allergies_checked || !!med.allergies_specified || prev.allergiesChecked,
         allergiesSpecified: med.allergies_specified || prev.allergiesSpecified,
-        hypertensionCva: med.hypertension_cva !== undefined ? !!med.hypertension_cva : prev.hypertensionCva,
-        diabetesMellitus: med.diabetes_mellitus !== undefined ? !!med.diabetes_mellitus : prev.diabetesMellitus,
-        bloodDisorder: med.blood_disorder !== undefined ? !!med.blood_disorder : prev.bloodDisorder,
-        cardiovascularHeartDiseases: med.cardiovascular_heart_diseases !== undefined ? !!med.cardiovascular_heart_diseases : prev.cardiovascularHeartDiseases,
-        thyroidDisorders: med.thyroid_disorders !== undefined ? !!med.thyroid_disorders : prev.thyroidDisorders,
+        hypertensionCva: med.hypertension_cva ? true : prev.hypertensionCva,
+        diabetesMellitus: med.diabetes_mellitus ? true : prev.diabetesMellitus,
+        bloodDisorder: med.blood_disorder ? true : prev.bloodDisorder,
+        cardiovascularHeartDiseases: med.cardiovascular_heart_diseases ? true : prev.cardiovascularHeartDiseases,
+        thyroidDisorders: med.thyroid_disorders ? true : prev.thyroidDisorders,
         hepatitisChecked: med.hepatitis_checked || !!med.hepatitis_specified || prev.hepatitisChecked,
         hepatitisSpecified: med.hepatitis_specified || prev.hepatitisSpecified,
         malignancyChecked: med.malignancy_checked || !!med.malignancy_specified || prev.malignancyChecked,
@@ -191,15 +190,15 @@ export default function App() {
         othersChecked: med.others_checked || !!med.others_specified || prev.othersChecked,
         othersSpecified: med.others_specified || prev.othersSpecified,
 
-        // Dietary Habits / Social History (Smart merge)
-        sugarBeveragesChecked: social.sugar_beverages_checked || !!social.sugar_beverages_specified || prev.sugarBeveragesChecked,
-        sugarBeveragesSpecified: social.sugar_beverages_specified || prev.sugarBeveragesSpecified,
-        useAlcoholChecked: social.use_alcohol_checked || !!social.use_alcohol_specified || prev.useAlcoholChecked,
-        useAlcoholSpecified: social.use_alcohol_specified || prev.useAlcoholSpecified,
-        useTobaccoChecked: social.use_tobacco_checked || !!social.use_tobacco_specified || prev.useTobaccoChecked,
-        useTobaccoSpecified: social.use_tobacco_specified || prev.useTobaccoSpecified,
-        betelNutChecked: social.betel_nut_checked || !!social.betel_nut_specified || prev.betelNutChecked,
-        betelNutSpecified: social.betel_nut_specified || prev.betelNutSpecified,
+        // Dietary Habits / Social History (Resets to false/empty if section is not in scanned page)
+        sugarBeveragesChecked: social.sugar_beverages_checked,
+        sugarBeveragesSpecified: social.sugar_beverages_specified || '',
+        useAlcoholChecked: social.use_alcohol_checked,
+        useAlcoholSpecified: social.use_alcohol_specified || '',
+        useTobaccoChecked: social.use_tobacco_checked,
+        useTobaccoSpecified: social.use_tobacco_specified || '',
+        betelNutChecked: social.betel_nut_checked,
+        betelNutSpecified: social.betel_nut_specified || '',
       }));
 
       setConfidence(response.data.confidence_score);
