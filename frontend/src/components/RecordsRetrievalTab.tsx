@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RefreshCw, User, ShieldCheck, HeartPulse, Stethoscope, Activity, Utensils, ChevronDown, ChevronUp } from 'lucide-react';
+import { Search, RefreshCw, User, ShieldCheck, HeartPulse, Stethoscope, Activity, Utensils, ChevronDown, ChevronUp, Edit2, Save, X, Check } from 'lucide-react';
 import axios from 'axios';
+import DentalChart from './DentalChart';
 
 export const RecordsRetrievalTab: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
@@ -8,13 +9,18 @@ export const RecordsRetrievalTab: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [expandedRecordId, setExpandedRecordId] = useState<number | null>(null);
 
+  // Editing state
+  const [editingRecordId, setEditingRecordId] = useState<number | null>(null);
+  const [editFormData, setEditFormData] = useState<any>({});
+  const [saving, setSaving] = useState<boolean>(false);
+  const [saveSuccessId, setSaveSuccessId] = useState<number | null>(null);
+
   const fetchRecords = async () => {
     setLoading(true);
     try {
       const res = await axios.get('http://localhost:8000/api/v1/forms/records');
       setRecords(res.data || []);
-      // Auto-expand the first record if available
-      if (res.data && res.data.length > 0) {
+      if (res.data && res.data.length > 0 && expandedRecordId === null) {
         setExpandedRecordId(res.data[0].id);
       }
     } catch (err) {
@@ -29,7 +35,49 @@ export const RecordsRetrievalTab: React.FC = () => {
   }, []);
 
   const toggleExpand = (id: number) => {
+    if (editingRecordId === id) return; // Don't collapse while editing
     setExpandedRecordId(expandedRecordId === id ? null : id);
+  };
+
+  const startEditing = (rec: any) => {
+    setEditingRecordId(rec.id);
+    setExpandedRecordId(rec.id);
+    setEditFormData({ ...rec });
+  };
+
+  const cancelEditing = () => {
+    setEditingRecordId(null);
+    setEditFormData({});
+  };
+
+  const handleFieldChange = (field: string, value: any) => {
+    setEditFormData((prev: any) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const saveRecordUpdate = async (id: number) => {
+    setSaving(true);
+    try {
+      // Strip read-only metadata properties before sending JSON payload
+      const { id: _, document_id, created_at, updated_at, ...cleanPayload } = editFormData;
+
+      await axios.put(`http://localhost:8000/api/v1/forms/records/${id}`, cleanPayload);
+      
+      setSaveSuccessId(id);
+      setEditingRecordId(null);
+      await fetchRecords();
+
+      setTimeout(() => {
+        setSaveSuccessId(null);
+      }, 3000);
+    } catch (err: any) {
+      console.error('Error updating patient record:', err.response?.data || err.message);
+      alert(`Failed to update record in database: ${err.response?.data?.detail || 'Server error'}`);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const filteredRecords = records.filter((r) => {
@@ -70,11 +118,15 @@ export const RecordsRetrievalTab: React.FC = () => {
         <div className="space-y-4">
           {filteredRecords.map((rec) => {
             const isExpanded = expandedRecordId === rec.id;
+            const isEditing = editingRecordId === rec.id;
+            const data = isEditing ? editFormData : rec;
 
             return (
               <div
                 key={rec.id}
-                className="bg-slate-950 border border-slate-800 rounded-xl overflow-hidden transition"
+                className={`bg-slate-950 border rounded-xl overflow-hidden transition ${
+                  isEditing ? 'border-blue-500 ring-1 ring-blue-500/50' : 'border-slate-800'
+                }`}
               >
                 {/* Header Summary Bar */}
                 <div
@@ -95,15 +147,45 @@ export const RecordsRetrievalTab: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    {saveSuccessId === rec.id && (
+                      <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-950/60 border border-emerald-800 px-2.5 py-1 rounded">
+                        <Check className="w-3.5 h-3.5" /> Updated
+                      </span>
+                    )}
+
+                    {!isEditing ? (
+                      <button
+                        onClick={() => startEditing(rec)}
+                        className="bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-700/60 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" /> Edit Record
+                      </button>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => saveRecordUpdate(rec.id)}
+                          disabled={saving}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-md"
+                        >
+                          <Save className="w-3.5 h-3.5" /> {saving ? 'Saving...' : 'Save Changes'}
+                        </button>
+                        <button
+                          onClick={cancelEditing}
+                          className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1.5 rounded-lg text-xs transition cursor-pointer"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+
                     <span className="text-[10px] bg-blue-950 text-blue-300 border border-blue-800 px-2.5 py-1 rounded-md font-mono">
                       {rec.document_id}
                     </span>
-                    {isExpanded ? (
-                      <ChevronUp className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                    )}
+
+                    <button onClick={() => toggleExpand(rec.id)} className="text-slate-400 p-1">
+                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    </button>
                   </div>
                 </div>
 
@@ -113,24 +195,172 @@ export const RecordsRetrievalTab: React.FC = () => {
                     
                     {/* 1. Demographics & Personal Information */}
                     <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
-                        <User className="w-4 h-4" /> Personal Information
+                      <div className="flex items-center justify-between border-b border-slate-800/80 pb-1">
+                        <span className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
+                          <User className="w-4 h-4" /> Personal Information
+                        </span>
+                        {isEditing && <span className="text-[11px] text-amber-400 font-mono">Editing Mode Active</span>}
                       </div>
-                      <div className="grid grid-cols-4 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80 font-mono">
-                        <div><span className="text-slate-400">Surname:</span> <p className="text-slate-100 font-bold">{rec.surname || 'N/A'}</p></div>
-                        <div><span className="text-slate-400">First Name:</span> <p className="text-slate-100 font-bold">{rec.first_name || 'N/A'}</p></div>
-                        <div><span className="text-slate-400">Middle Name:</span> <p className="text-slate-100 font-bold">{rec.middle_initial || 'N/A'}</p></div>
-                        <div><span className="text-slate-400">Civil Status:</span> <p className="text-slate-100 font-bold">{rec.civil_status || 'N/A'}</p></div>
-                        
-                        <div><span className="text-slate-400">Place of Birth:</span> <p className="text-slate-100">{rec.place_of_birth || 'N/A'}</p></div>
-                        <div><span className="text-slate-400">Occupation:</span> <p className="text-slate-100">{rec.occupation || 'N/A'}</p></div>
-                        <div><span className="text-slate-400">Parent / Guardian:</span> <p className="text-slate-100">{rec.parent_guardian || 'N/A'}</p></div>
-                        <div><span className="text-slate-400">Signed Name:</span> <p className="text-emerald-400 font-bold">{rec.signed_name || 'N/A'}</p></div>
 
-                        <div><span className="text-slate-400">PhilHealth No:</span> <p className="text-blue-300">{rec.philhealth_no || 'N/A'}</p></div>
-                        <div><span className="text-slate-400">Yakap Provider:</span> <p className="text-slate-100">{rec.yakap_provider || 'N/A'}</p></div>
-                        <div><span className="text-slate-400">CP NO. (Contact):</span> <p className="text-blue-400">{rec.contact_no || 'N/A'}</p></div>
-                        <div><span className="text-slate-400">Record Created:</span> <p className="text-slate-400">{rec.created_at || 'N/A'}</p></div>
+                      <div className="grid grid-cols-4 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
+                        <div>
+                          <label className="text-slate-400 block mb-1">Surname:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.surname || ''}
+                              onChange={(e) => handleFieldChange('surname', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100 font-bold">{data.surname || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">First Name:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.first_name || ''}
+                              onChange={(e) => handleFieldChange('first_name', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100 font-bold">{data.first_name || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Middle Name:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.middle_initial || ''}
+                              onChange={(e) => handleFieldChange('middle_initial', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100 font-bold">{data.middle_initial || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Civil Status:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.civil_status || ''}
+                              onChange={(e) => handleFieldChange('civil_status', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100 font-bold">{data.civil_status || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Place of Birth:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.place_of_birth || ''}
+                              onChange={(e) => handleFieldChange('place_of_birth', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100">{data.place_of_birth || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Occupation:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.occupation || ''}
+                              onChange={(e) => handleFieldChange('occupation', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100">{data.occupation || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Parent / Guardian:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.parent_guardian || ''}
+                              onChange={(e) => handleFieldChange('parent_guardian', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100">{data.parent_guardian || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Signed Name:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.signed_name || ''}
+                              onChange={(e) => handleFieldChange('signed_name', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-emerald-400 font-bold"
+                            />
+                          ) : (
+                            <p className="text-emerald-400 font-bold">{data.signed_name || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">PhilHealth No:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.philhealth_no || ''}
+                              onChange={(e) => handleFieldChange('philhealth_no', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-blue-300 font-mono"
+                            />
+                          ) : (
+                            <p className="text-blue-300 font-mono">{data.philhealth_no || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Yakap Provider:</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.yakap_provider || ''}
+                              onChange={(e) => handleFieldChange('yakap_provider', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                            />
+                          ) : (
+                            <p className="text-slate-100">{data.yakap_provider || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">CP NO. (Contact):</label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.contact_no || ''}
+                              onChange={(e) => handleFieldChange('contact_no', e.target.value)}
+                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-blue-400 font-mono"
+                            />
+                          ) : (
+                            <p className="text-blue-400 font-mono">{data.contact_no || 'N/A'}</p>
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="text-slate-400 block mb-1">Record Created:</label>
+                          <p className="text-slate-400 font-mono">{data.created_at || 'N/A'}</p>
+                        </div>
                       </div>
                     </div>
 
@@ -142,22 +372,49 @@ export const RecordsRetrievalTab: React.FC = () => {
                           <ShieldCheck className="w-4 h-4" /> Memberships
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs bg-slate-900/70 p-3.5 rounded-lg border border-slate-800/80">
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${rec.nhts_pr ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
-                            <span className="text-slate-300">NHTS-PR:</span> <strong>{rec.nhts_pr ? 'Yes' : 'No'}</strong>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${rec.four_ps ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
-                            <span className="text-slate-300">4Ps:</span> <strong>{rec.four_ps ? 'Yes' : 'No'}</strong>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${rec.indigenous_people ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
-                            <span className="text-slate-300">Indigenous (IP):</span> <strong>{rec.indigenous_people ? 'Yes' : 'No'}</strong>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full ${rec.pwds ? 'bg-emerald-400' : 'bg-slate-600'}`}></span>
-                            <span className="text-slate-300">PWDs:</span> <strong>{rec.pwds ? 'Yes' : 'No'}</strong>
-                          </div>
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.nhts_pr}
+                              onChange={(e) => handleFieldChange('nhts_pr', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">NHTS-PR</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.four_ps}
+                              onChange={(e) => handleFieldChange('four_ps', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">4Ps</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.indigenous_people}
+                              onChange={(e) => handleFieldChange('indigenous_people', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Indigenous (IP)</span>
+                          </label>
+
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.pwds}
+                              onChange={(e) => handleFieldChange('pwds', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">PWDs</span>
+                          </label>
                         </div>
                       </div>
 
@@ -167,9 +424,47 @@ export const RecordsRetrievalTab: React.FC = () => {
                           <HeartPulse className="w-4 h-4" /> Vital Signs
                         </div>
                         <div className="grid grid-cols-3 gap-2 text-xs bg-slate-900/70 p-3.5 rounded-lg border border-slate-800/80 font-mono">
-                          <div><span className="text-slate-400">BP:</span> <p className="text-slate-100 font-bold">{rec.blood_pressure || 'N/A'}</p></div>
-                          <div><span className="text-slate-400">Pulse:</span> <p className="text-slate-100 font-bold">{rec.pulse_rate || 'N/A'}</p></div>
-                          <div><span className="text-slate-400">Temp:</span> <p className="text-slate-100 font-bold">{rec.temperature ? `${rec.temperature} °C` : 'N/A'}</p></div>
+                          <div>
+                            <label className="text-slate-400 block mb-1">BP:</label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={data.blood_pressure || ''}
+                                onChange={(e) => handleFieldChange('blood_pressure', e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                              />
+                            ) : (
+                              <p className="text-slate-100 font-bold">{data.blood_pressure || 'N/A'}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="text-slate-400 block mb-1">Pulse:</label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={data.pulse_rate || ''}
+                                onChange={(e) => handleFieldChange('pulse_rate', e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                              />
+                            ) : (
+                              <p className="text-slate-100 font-bold">{data.pulse_rate || 'N/A'}</p>
+                            )}
+                          </div>
+
+                          <div>
+                            <label className="text-slate-400 block mb-1">Temp (°C):</label>
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={data.temperature || ''}
+                                onChange={(e) => handleFieldChange('temperature', e.target.value)}
+                                className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+                              />
+                            ) : (
+                              <p className="text-slate-100 font-bold">{data.temperature ? `${data.temperature} °C` : 'N/A'}</p>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -180,89 +475,92 @@ export const RecordsRetrievalTab: React.FC = () => {
                         <Stethoscope className="w-4 h-4" /> Medical History
                       </div>
                       <div className="grid grid-cols-3 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
-                        <div>
-                          <span className="text-slate-400">Allergies:</span>
-                          <p className="font-bold text-slate-100">{rec.allergies_checked ? `Yes (${rec.allergies_specified || 'Unspecified'})` : 'No'}</p>
+                        <div className="col-span-3 grid grid-cols-3 items-center gap-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              disabled={!isEditing}
+                              checked={!!data.allergies_checked}
+                              onChange={(e) => handleFieldChange('allergies_checked', e.target.checked)}
+                              className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                            />
+                            <span className="text-slate-300">Allergies Specified:</span>
+                          </label>
+                          {isEditing ? (
+                            <input
+                              type="text"
+                              value={data.allergies_specified || ''}
+                              onChange={(e) => handleFieldChange('allergies_specified', e.target.value)}
+                              className="col-span-2 bg-slate-950 border border-slate-700 rounded px-2 py-1 text-emerald-400 font-mono"
+                            />
+                          ) : (
+                            <p className="col-span-2 text-emerald-400 font-mono">{data.allergies_specified || 'None'}</p>
+                          )}
                         </div>
-                        <div>
-                          <span className="text-slate-400">Hypertension / CVA:</span>
-                          <p className="font-bold text-slate-100">{rec.hypertension_cva ? 'Yes' : 'No'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Diabetes Mellitus:</span>
-                          <p className="font-bold text-slate-100">{rec.diabetes_mellitus ? 'Yes' : 'No'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Blood Disorder:</span>
-                          <p className="font-bold text-slate-100">{rec.blood_disorder ? 'Yes' : 'No'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Cardiovascular / Heart:</span>
-                          <p className="font-bold text-slate-100">{rec.cardiovascular_heart_diseases ? 'Yes' : 'No'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Thyroid Disorders:</span>
-                          <p className="font-bold text-slate-100">{rec.thyroid_disorders ? 'Yes' : 'No'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Hepatitis:</span>
-                          <p className="font-bold text-slate-100">{rec.hepatitis_checked ? `Yes (${rec.hepatitis_specified || 'Unspecified'})` : 'No'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Malignancy:</span>
-                          <p className="font-bold text-slate-100">{rec.malignancy_checked ? `Yes (${rec.malignancy_specified || 'Unspecified'})` : 'No'}</p>
-                        </div>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            disabled={!isEditing}
+                            checked={!!data.hypertension_cva}
+                            onChange={(e) => handleFieldChange('hypertension_cva', e.target.checked)}
+                            className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                          />
+                          <span className="text-slate-300">Hypertension / CVA</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            disabled={!isEditing}
+                            checked={!!data.diabetes_mellitus}
+                            onChange={(e) => handleFieldChange('diabetes_mellitus', e.target.checked)}
+                            className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                          />
+                          <span className="text-slate-300">Diabetes Mellitus</span>
+                        </label>
+
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            disabled={!isEditing}
+                            checked={!!data.blood_disorder}
+                            onChange={(e) => handleFieldChange('blood_disorder', e.target.checked)}
+                            className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
+                          />
+                          <span className="text-slate-300">Blood Disorders</span>
+                        </label>
                       </div>
                     </div>
 
-                    {/* 4. History of Hospitalization */}
+                    {/* 4. Oral Health Condition Chart Logs (Saved Group View & Editing) */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
-                        <Activity className="w-4 h-4" /> History of Hospitalization
+                        <Stethoscope className="w-4 h-4" /> Oral Health Condition Chart Logs
                       </div>
-                      <div className="grid grid-cols-2 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
-                        <div>
-                          <span className="text-slate-400">Medical Admission:</span>
-                          <p className="font-mono text-slate-100">{rec.medical_hospitalization_checked ? `Yes - ${rec.medical_hospitalization_specified}` : 'None'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Surgical (Post-Op):</span>
-                          <p className="font-mono text-slate-100">{rec.surgical_checked ? `Yes - ${rec.surgical_specified}` : 'None'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Blood Transfusion:</span>
-                          <p className="font-mono text-slate-100">{rec.blood_transfusion_checked ? `Yes - ${rec.blood_transfusion_specified}` : 'None'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Tattoo:</span>
-                          <p className="font-mono text-slate-100">{rec.tattoo_checked ? `Yes - ${rec.tattoo_specified}` : 'None'}</p>
-                        </div>
-                      </div>
-                    </div>
 
-                    {/* 5. Dietary Habits / Social History */}
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
-                        <Utensils className="w-4 h-4" /> Dietary Habits / Social History
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
-                        <div>
-                          <span className="text-slate-400">Sugar Beverages/Food:</span>
-                          <p className="font-mono text-emerald-400">{rec.sugar_beverages_checked ? `Yes (${rec.sugar_beverages_specified || 'Specified'})` : 'No'}</p>
+                      {isEditing ? (
+                        <DentalChart
+                          visits={data.dental_chart || []}
+                          setVisits={(updatedVisits) =>
+                            handleFieldChange(
+                              'dental_chart',
+                              typeof updatedVisits === 'function' ? updatedVisits(data.dental_chart || []) : updatedVisits
+                            )
+                          }
+                        />
+                      ) : (
+                        <div className="bg-slate-950 p-4 rounded-xl border border-slate-800">
+                          {(data.dental_chart && data.dental_chart.length > 0) ? (
+                            <DentalChart
+                              visits={data.dental_chart}
+                              setVisits={() => {}} // Read-only mode
+                            />
+                          ) : (
+                            <p className="text-xs text-slate-500 text-center py-4">No oral health chart logs recorded for this patient.</p>
+                          )}
                         </div>
-                        <div>
-                          <span className="text-slate-400">Use of Alcohol:</span>
-                          <p className="font-mono text-emerald-400">{rec.use_alcohol_checked ? `Yes (${rec.use_alcohol_specified || 'Specified'})` : 'No'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Use of Tobacco:</span>
-                          <p className="font-mono text-emerald-400">{rec.use_tobacco_checked ? `Yes (${rec.use_tobacco_specified || 'Specified'})` : 'No'}</p>
-                        </div>
-                        <div>
-                          <span className="text-slate-400">Betel Nut Chewing:</span>
-                          <p className="font-mono text-emerald-400">{rec.betel_nut_checked ? `Yes (${rec.betel_nut_specified || 'Specified'})` : 'No'}</p>
-                        </div>
-                      </div>
+                      )}
                     </div>
 
                   </div>

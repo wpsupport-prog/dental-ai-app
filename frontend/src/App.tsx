@@ -218,7 +218,7 @@ export default function App() {
   };
   
   // Save full record including multi-visit dental chart entries
-  const handleSaveDatabase = async () => {
+ const handleSaveDatabase = async () => {
     try {
       await axios.post('http://localhost:8000/api/v1/forms/save', {
         document_id: `doc_${Date.now()}`,
@@ -289,9 +289,9 @@ export default function App() {
       });
 
       setSavedSuccess(true);
-    } catch (error) {
-      console.error('Error saving to database:', error);
-      alert('Failed to save record to database.');
+    } catch (error: any) {
+      console.error('Error saving to database:', error.response?.data || error.message);
+      alert(`Failed to save record to database: ${error.response?.data?.detail || 'Server error'}`);
     }
   };
 
