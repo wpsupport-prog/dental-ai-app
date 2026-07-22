@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Activity } from 'lucide-react';
+import { calculateDentalCounts } from '../utils/dentalChartCalculator';
 
 interface ToothMarkings {
   [toothNumber: string]: string;
@@ -40,45 +41,10 @@ export const OralHealthConditionSummary: React.FC<OralHealthConditionSummaryProp
   const latestVisit = visits && visits.length > 0 ? visits[0] : null;
   const chartData = latestVisit?.chartData || {};
 
-  // Auto-calculate counts for Section B
-  const calculateCounts = () => {
-    let permPresent = 0, permSound = 0, permDecayed = 0, permMissing = 0, permFilled = 0;
-    let tempPresent = 0, tempSound = 0, tempDecayed = 0, tempFilled = 0;
-
-    Object.entries(chartData).forEach(([tooth, symbol]) => {
-      const toothNum = parseInt(tooth, 10);
-      const isPerm = toothNum >= 11 && toothNum <= 48;
-      const isTemp = toothNum >= 51 && toothNum <= 85;
-
-      if (symbol) {
-        if (isPerm) {
-          permPresent++;
-          if (symbol === '✓' || symbol === 's') permSound++;
-          if (symbol === 'D') permDecayed++;
-          if (symbol === 'M') permMissing++;
-          if (symbol === 'F') permFilled++;
-        } else if (isTemp) {
-          tempPresent++;
-          if (symbol === '✓' || symbol === 's') tempSound++;
-          if (symbol === 'd') tempDecayed++;
-          if (symbol === 'f') tempFilled++;
-        }
-      }
-    });
-
-    const totalDMF = permDecayed + permMissing + permFilled;
-    const totalTeeth = permPresent + tempPresent;
-
-    return {
-      permPresent, permSound, permDecayed, permMissing, permFilled, totalDMF,
-      tempPresent, tempSound, tempDecayed, tempFilled, totalTeeth
-    };
-  };
-
-  const counts = calculateCounts();
+  // Calculate mapped counts using the modular calculator helper
+  const counts = calculateDentalCounts(chartData);
   const examDate = latestVisit?.visitDate ? latestVisit.visitDate.split(',')[0] : 'N/A';
 
-  // 1. All fields explicitly default to '* (Absent)' unless loaded from saved record data
   const defaultAbsentState: SectionAConditions = {
     orallyFitChild: '*',
     dentalCaries: '*',
@@ -98,7 +64,6 @@ export const OralHealthConditionSummary: React.FC<OralHealthConditionSummaryProp
     return defaultAbsentState;
   });
 
-  // 2. Sync from parent only if explicit sectionAData is provided
   useEffect(() => {
     if (sectionAData && Object.keys(sectionAData).length > 0) {
       setInternalSectionA({ ...defaultAbsentState, ...sectionAData });

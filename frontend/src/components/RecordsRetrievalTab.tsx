@@ -248,32 +248,54 @@ export const RecordsRetrievalTab: React.FC = () => {
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Civil Status:</label>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={data.civil_status || ''}
-                              onChange={(e) => handleFieldChange('civil_status', e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                            />
-                          ) : (
-                            <p className="text-slate-100 font-bold">{data.civil_status || 'N/A'}</p>
-                          )}
-                        </div>
+							  <label className="text-slate-400 block mb-1">Civil Status:</label>
+							  {isEditing ? (
+								<input
+								  type="text"
+								  value={data.civil_status || ''}
+								  onChange={(e) => handleFieldChange('civil_status', e.target.value)}
+								  className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
+								/>
+							  ) : (
+								<p className="text-slate-100 font-bold">{data.civil_status || 'N/A'}</p>
+							  )}
+							</div>
 
-                        <div>
-                          <label className="text-slate-400 block mb-1">Date of Birth:</label>
-                          {isEditing ? (
-                            <input
-                              type="text"
-                              value={data.dob || ''}
-                              onChange={(e) => handleFieldChange('dob', e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
-                            />
-                          ) : (
-                            <p className="text-slate-100">{data.dob || 'N/A'}</p>
-                          )}
-                        </div>
+							<div>
+						  <label className="block text-[10px] font-medium text-slate-400 uppercase mb-1">Date of Birth</label>
+						  <input
+							type="text"
+							value={data.dob || ''}
+							onChange={(e) => handleFieldChange('dob', e.target.value)}
+							className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-slate-100 text-xs"
+						  />
+						</div>
+
+						{/* EDITABLE AGE */}
+						<div>
+						  <label className="block text-[10px] font-medium text-slate-400 uppercase mb-1">Age</label>
+						  <input
+							type="text"
+							value={data.age || ''}
+							onChange={(e) => handleFieldChange('age', e.target.value)}
+							className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-slate-100 text-xs"
+						  />
+						</div>
+
+						{/* EDITABLE SEX DROPDOWN */}
+						<div>
+						  <label className="block text-[10px] font-medium text-slate-400 uppercase mb-1">Sex</label>
+						  <select
+							value={data.sex || ''}
+							onChange={(e) => handleFieldChange('sex', e.target.value)}
+							className="w-full bg-slate-900 border border-slate-700 rounded-lg p-1.5 text-slate-100 text-xs cursor-pointer"
+						  >
+							<option value="">Select...</option>
+							<option value="M">Male (M)</option>
+							<option value="F">Female (F)</option>
+							<option value="Other">Other</option>
+						  </select>
+						</div>
 
                         <div>
                           <label className="text-slate-400 block mb-1">Age / Sex:</label>

@@ -147,72 +147,93 @@ export default function App() {
       const med = response.data.medical_history || {};
       const social = response.data.social_history || {};
 
-      setFormData((prev) => ({
-        // Demographics
-        surname: info.surname || prev.surname,
-        firstName: info.first_name || prev.firstName,
-        middleInitial: info.middle_initial || prev.middleInitial,
-        dob: info.dob || prev.dob,
-        age: info.age || prev.age,
-        sex: info.sex || prev.sex,
-        civilStatus: info.civil_status || prev.civilStatus,
-        placeOfBirth: info.place_of_birth || prev.placeOfBirth,
-        address: info.address || prev.address,
-        occupation: info.occupation || prev.occupation,
-        parentGuardian: info.parent_guardian || prev.parentGuardian,
-        philhealthNo: info.philhealth_no || prev.philhealthNo,
-        yakapProvider: info.yakap_provider || prev.yakapProvider,
-        contactNo: info.contact_no || prev.contactNo,
-        signedName: info.signed_name || prev.signedName,
+      setFormData((prev) => {
+        // Handle raw AI extraction for age & sex cleanly
+        let rawAge = (info.age || '').toString().trim();
+        let rawSex = (info.sex || '').toString().trim().toUpperCase();
 
-        // Vitals
-        bloodPressure: vitals.blood_pressure || prev.bloodPressure,
-        pulseRate: vitals.pulse_rate || prev.pulseRate,
-        temperature: vitals.temperature || prev.temperature,
-		height: vitals.height || prev.height,   // <-- Added
-        weight: vitals.weight || prev.weight,   // <-- Added
+        // If vision AI returned a combined string like "46 / M" in either field, clean it up:
+        if (rawAge.includes('/')) {
+          const parts = rawAge.split('/');
+          rawAge = parts[0].trim();
+          if (!rawSex) rawSex = parts[1]?.trim().toUpperCase() || '';
+        }
 
-        // Memberships (Reads 'X' marks and '✓' marks correctly)
-        nhtsPr: mems.nhts_pr ? true : prev.nhtsPr,
-        fourPs: mems.four_ps ? true : prev.fourPs,
-        indigenousPeople: mems.indigenous_people ? true : prev.indigenousPeople,
-        pwds: mems.pwds ? true : prev.pwds,
+        // Normalize Sex to 'M', 'F', or fallback
+        if (rawSex.startsWith('M')) rawSex = 'M';
+        else if (rawSex.startsWith('F')) rawSex = 'F';
 
-        // Medical History
-        allergiesChecked: med.allergies_checked || !!med.allergies_specified || prev.allergiesChecked,
-        allergiesSpecified: med.allergies_specified || prev.allergiesSpecified,
-        hypertensionCva: med.hypertension_cva ? true : prev.hypertensionCva,
-        diabetesMellitus: med.diabetes_mellitus ? true : prev.diabetesMellitus,
-        bloodDisorder: med.blood_disorder ? true : prev.bloodDisorder,
-        cardiovascularHeartDiseases: med.cardiovascular_heart_diseases ? true : prev.cardiovascularHeartDiseases,
-        thyroidDisorders: med.thyroid_disorders ? true : prev.thyroidDisorders,
-        hepatitisChecked: med.hepatitis_checked || !!med.hepatitis_specified || prev.hepatitisChecked,
-        hepatitisSpecified: med.hepatitis_specified || prev.hepatitisSpecified,
-        malignancyChecked: med.malignancy_checked || !!med.malignancy_specified || prev.malignancyChecked,
-        malignancySpecified: med.malignancy_specified || prev.malignancySpecified,
+        return {
+          ...prev,
+          // Demographics
+          surname: info.surname || prev.surname,
+          firstName: info.first_name || prev.firstName,
+          middleInitial: info.middle_initial || prev.middleInitial,
+          dob: info.dob || prev.dob,
 
-        // Hospitalization
-        medicalHospitalizationChecked: med.medical_hospitalization_checked || !!med.medical_hospitalization_specified || prev.medicalHospitalizationChecked,
-        medicalHospitalizationSpecified: med.medical_hospitalization_specified || prev.medicalHospitalizationSpecified,
-        surgicalChecked: med.surgical_checked || !!med.surgical_specified || prev.surgicalChecked,
-        surgicalSpecified: med.surgical_specified || prev.surgicalSpecified,
-        bloodTransfusionChecked: med.blood_transfusion_checked || !!med.blood_transfusion_specified || prev.bloodTransfusionChecked,
-        bloodTransfusionSpecified: med.blood_transfusion_specified || prev.bloodTransfusionSpecified,
-        tattooChecked: med.tattoo_checked || !!med.tattoo_specified || prev.tattooChecked,
-        tattooSpecified: med.tattoo_specified || prev.tattooSpecified,
-        othersChecked: med.others_checked || !!med.others_specified || prev.othersChecked,
-        othersSpecified: med.others_specified || prev.othersSpecified,
+          // Mapped Independent Age & Sex
+          age: rawAge || prev.age,
+          sex: rawSex || prev.sex,
 
-        // Dietary Habits / Social History
-        sugarBeveragesChecked: social.sugar_beverages_checked,
-        sugarBeveragesSpecified: social.sugar_beverages_specified || '',
-        useAlcoholChecked: social.use_alcohol_checked,
-        useAlcoholSpecified: social.use_alcohol_specified || '',
-        useTobaccoChecked: social.use_tobacco_checked,
-        useTobaccoSpecified: social.use_tobacco_specified || '',
-        betelNutChecked: social.betel_nut_checked,
-        betelNutSpecified: social.betel_nut_specified || '',
-      }));
+          civilStatus: info.civil_status || prev.civilStatus,
+          placeOfBirth: info.place_of_birth || prev.placeOfBirth,
+          address: info.address || prev.address,
+          occupation: info.occupation || prev.occupation,
+          parentGuardian: info.parent_guardian || prev.parentGuardian,
+          philhealthNo: info.philhealth_no || prev.philhealthNo,
+          yakapProvider: info.yakap_provider || prev.yakapProvider,
+          contactNo: info.contact_no || prev.contactNo,
+          signedName: info.signed_name || prev.signedName,
+
+          // Vitals
+          bloodPressure: vitals.blood_pressure || prev.bloodPressure,
+          pulseRate: vitals.pulse_rate || prev.pulseRate,
+          temperature: vitals.temperature || prev.temperature,
+          height: vitals.height || prev.height,
+          weight: vitals.weight || prev.weight,
+
+          // Memberships
+          nhtsPr: mems.nhts_pr ? true : prev.nhtsPr,
+          fourPs: mems.four_ps ? true : prev.fourPs,
+          indigenousPeople: mems.indigenous_people ? true : prev.indigenousPeople,
+          pwds: mems.pwds ? true : prev.pwds,
+
+          // Medical History
+          allergiesChecked: med.allergies_checked || !!med.allergies_specified || prev.allergiesChecked,
+          allergiesSpecified: med.allergies_specified || prev.allergiesSpecified,
+          hypertensionCva: med.hypertension_cva ? true : prev.hypertensionCva,
+          diabetesMellitus: med.diabetes_mellitus ? true : prev.diabetesMellitus,
+          bloodDisorder: med.blood_disorder ? true : prev.bloodDisorder,
+          cardiovascularHeartDiseases: med.cardiovascular_heart_diseases ? true : prev.cardiovascularHeartDiseases,
+          thyroidDisorders: med.thyroid_disorders ? true : prev.thyroidDisorders,
+          hepatitisChecked: med.hepatitis_checked || !!med.hepatitis_specified || prev.hepatitisChecked,
+          hepatitisSpecified: med.hepatitis_specified || prev.hepatitisSpecified,
+          malignancyChecked: med.malignancy_checked || !!med.malignancy_specified || prev.malignancyChecked,
+          malignancySpecified: med.malignancy_specified || prev.malignancySpecified,
+
+          // Hospitalization
+          medicalHospitalizationChecked: med.medical_hospitalization_checked || !!med.medical_hospitalization_specified || prev.medicalHospitalizationChecked,
+          medicalHospitalizationSpecified: med.medical_hospitalization_specified || prev.medicalHospitalizationSpecified,
+          surgicalChecked: med.surgical_checked || !!med.surgical_specified || prev.surgicalChecked,
+          surgicalSpecified: med.surgical_specified || prev.surgicalSpecified,
+          bloodTransfusionChecked: med.blood_transfusion_checked || !!med.blood_transfusion_specified || prev.bloodTransfusionChecked,
+          bloodTransfusionSpecified: med.blood_transfusion_specified || prev.bloodTransfusionSpecified,
+          tattooChecked: med.tattoo_checked || !!med.tattoo_specified || prev.tattooChecked,
+          tattooSpecified: med.tattoo_specified || prev.tattooSpecified,
+          othersChecked: med.others_checked || !!med.others_specified || prev.othersChecked,
+          othersSpecified: med.others_specified || prev.othersSpecified,
+
+          // Dietary Habits / Social History
+          sugarBeveragesChecked: social.sugar_beverages_checked,
+          sugarBeveragesSpecified: social.sugar_beverages_specified || '',
+          useAlcoholChecked: social.use_alcohol_checked,
+          useAlcoholSpecified: social.use_alcohol_specified || '',
+          useTobaccoChecked: social.use_tobacco_checked,
+          useTobaccoSpecified: social.use_tobacco_specified || '',
+          betelNutChecked: social.betel_nut_checked,
+          betelNutSpecified: social.betel_nut_specified || '',
+        };
+      });
 
       setConfidence(response.data.confidence_score);
     } catch (error) {
@@ -388,14 +409,44 @@ export default function App() {
                       <input type="text" value={formData.middleInitial} onChange={(e) => setFormData({ ...formData, middleInitial: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm" />
                     </div>
 
-                    <div>
+					<div>
                       <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Date of Birth</label>
-                      <input type="text" value={formData.dob} onChange={(e) => setFormData({ ...formData, dob: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm" />
+                      <input 
+                        type="text" 
+                        value={formData.dob} 
+                        onChange={(e) => setFormData({ ...formData, dob: e.target.value })} 
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm" 
+                      />
                     </div>
+
+                    {/* SEPARATED AGE INPUT */}
                     <div>
-                      <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Age / Sex</label>
-                      <input type="text" value={`${formData.age} / ${formData.sex}`} onChange={(e) => setFormData({ ...formData, age: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm" />
+                      <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Age</label>
+                      <input 
+                        type="text" 
+                        value={formData.age} 
+                        onChange={(e) => setFormData({ ...formData, age: e.target.value })} 
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm" 
+                        placeholder="e.g. 46"
+                      />
                     </div>
+
+                    {/* SEPARATED SEX DROPDOWN */}
+                    <div>
+                      <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Sex</label>
+                      <select 
+                        value={formData.sex} 
+                        onChange={(e) => setFormData({ ...formData, sex: e.target.value })} 
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm cursor-pointer"
+                      >
+                        <option value="">Select...</option>
+                        <option value="M">Male (M)</option>
+                        <option value="F">Female (F)</option>
+                        <option value="Other">Other</option>
+                      </select>
+                    </div>
+					
+                    
                     <div>
                       <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Civil Status</label>
                       <input type="text" value={formData.civilStatus} onChange={(e) => setFormData({ ...formData, civilStatus: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm" />
@@ -632,8 +683,11 @@ export default function App() {
                 {/* Interactive Multi-Visit Oral Health Condition Chart */}
                 <DentalChart visits={visits} setVisits={setVisits} />
 				
-				{/* Read-Only 2-Column Summary Blocks (Section A & B) */}
-				<OralHealthConditionSummary visits={visits} />
+				{/* Interactive 2-Column Summary Block (Section A & B) */}
+				<OralHealthConditionSummary
+				  visits={visits}
+				  isEditable={true}
+				/>
 				
 				
               </div>
