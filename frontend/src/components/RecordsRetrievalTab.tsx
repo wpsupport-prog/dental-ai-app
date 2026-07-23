@@ -238,15 +238,15 @@ export const RecordsRetrievalTab: React.FC = () => {
               }
             }
 			
-			// Safe parsing for Services Monitoring Chart data
-            let displayServices = data.services_monitoring;
-            if (typeof displayServices === 'string') {
-              try {
-                displayServices = JSON.parse(displayServices);
-              } catch {
-                displayServices = {};
-              }
-            }
+			// Safe parsing for Services Monitoring Chart data (Array or Dictionary)
+			let displayServices = data.services_monitoring;
+			if (typeof displayServices === 'string') {
+			  try {
+				displayServices = JSON.parse(displayServices);
+			  } catch {
+				displayServices = [];
+			  }
+			}
 
             return (
               <div

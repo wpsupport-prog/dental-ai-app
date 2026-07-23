@@ -9,7 +9,7 @@ import { RecordsRetrievalTab } from './components/RecordsRetrievalTab';
 
 import OralHealthConditionSummary from './components/OralHealthConditionSummary';
 
-import ServicesMonitoringChart, { type ServiceToothData } from './components/ServicesMonitoringChart';
+import ServicesMonitoringChart, { type ServiceVisitRecord, type ServiceToothData } from './components/ServicesMonitoringChart';
 
 export type ActiveTab = 'intake' | 'records';
 
@@ -121,8 +121,8 @@ export default function App() {
     },
   ]);
   
-  // State to track stacked Services Monitoring Chart inputs
-  const [servicesData, setServicesData] = useState<ServiceToothData>({});
+	// State to track multi-visit Services Monitoring Chart logs
+	const [servicesData, setServicesData] = useState<ServiceVisitRecord[] | ServiceToothData>([]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
