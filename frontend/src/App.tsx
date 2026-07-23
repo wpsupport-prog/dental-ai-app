@@ -21,8 +21,11 @@ import { RecordsRetrievalTab } from './components/RecordsRetrievalTab';
 import OralHealthConditionSummary from './components/OralHealthConditionSummary';
 import ServicesMonitoringChart, { type ServiceVisitRecord, type ServiceToothData } from './components/ServicesMonitoringChart';
 import WebcamCaptureModal from './components/WebcamCaptureModal';
+import MobileCameraCapture from './components/MobileCameraCapture'; // <-- ADD THIS LINE
 
 export type ActiveTab = 'intake' | 'records';
+
+import { useEffect, useRef } from 'react';
 
 // Define visit record type locally to prevent Vite runtime export errors
 export interface DentalVisitRecord {
@@ -47,6 +50,41 @@ const getLocalPCDateTime = () => {
 };
 
 export default function App() {
+	
+	// Inside your main App() component:
+const lastSyncedTimestamp = useRef<number>(0);
+
+useEffect(() => {
+  // Poll backend every 2 seconds for new photos taken from mobile phone
+  const syncInterval = setInterval(async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/api/v1/sync/latest');
+      const data = response.data;
+
+      if (data && data.url && data.timestamp > lastSyncedTimestamp.current) {
+        lastSyncedTimestamp.current = data.timestamp;
+
+        // Fetch image as File blob so desktop treats it as an active upload file
+        const imageBlob = await fetch(data.url).then((r) => r.blob());
+        const syncedFile = new File([imageBlob], data.filename || 'mobile_scan.jpg', {
+          type: imageBlob.type,
+        });
+
+        // Set state on Desktop automatically!
+        setFile(syncedFile);
+        setImagePreview(data.url);
+        setSavedSuccess(false);
+      }
+    } catch (err) {
+      // Ignore polling errors silently
+    }
+  }, 2000);
+
+  return () => clearInterval(syncInterval);
+}, []);
+	
+	
+	
   const [activeTab, setActiveTab] = useState<ActiveTab>('intake');
   
   const [isWebcamOpen, setIsWebcamOpen] = useState(false);
@@ -144,6 +182,13 @@ export default function App() {
       setImagePreview(URL.createObjectURL(selectedFile));
       setSavedSuccess(false);
     }
+  };
+  
+  // <-- ADD THIS NEW HANDLER FOR MOBILE CAMERA CAPTURE
+  const handleMobileCapture = (capturedFile: File, previewUrl: string) => {
+    setFile(capturedFile);
+    setImagePreview(previewUrl);
+    setSavedSuccess(false);
   };
 
   const handleUpload = async () => {
@@ -362,15 +407,20 @@ export default function App() {
           <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
 
-        {/* Right side Upload, Webcam & Process Buttons (Intake Tab Only) */}
+        {/* Right side Upload, Mobile Snap, Webcam & Process Buttons (Intake Tab Only) */}
         {activeTab === 'intake' && (
           <div className="flex items-center gap-3">
+            {/* 1. Mobile Camera Capture Button */}
+            <MobileCameraCapture onCapture={handleMobileCapture} />
+
+            {/* 2. File Upload Selector */}
             <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg text-sm flex items-center gap-2 transition border border-slate-700">
               <Upload className="w-4 h-4 text-blue-400"/>
               <span>{file ? file.name : "Select Form Scan"}</span>
               <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
             </label>
 
+            {/* 3. Webcam / USB Capture */}
             <button
               type="button"
               onClick={() => setIsWebcamOpen(true)}
@@ -380,6 +430,7 @@ export default function App() {
               <span>Capture via Webcam</span>
             </button>
 
+            {/* 4. Process AI Button */}
             <button 
               onClick={handleUpload}
               disabled={!file || isUploading}
