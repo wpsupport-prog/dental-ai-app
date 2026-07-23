@@ -1,11 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { Search, RefreshCw, User, ShieldCheck, HeartPulse, Stethoscope, Activity, Utensils, ChevronDown, ChevronUp, Edit2, Save, X, Check, Plus } from 'lucide-react';
+
+// Combine all icon imports into a single line:
+import { 
+  Search, 
+  RefreshCw, 
+  User, 
+  ShieldCheck, 
+  HeartPulse, 
+  Stethoscope, 
+  Activity, 
+  Utensils, 
+  ChevronDown, 
+  ChevronUp, 
+  Edit2, 
+  Save, 
+  X, 
+  Check, 
+  Plus, 
+  Trash2 
+} from 'lucide-react';
+
 import axios from 'axios';
 import DentalChart from './DentalChart';
 import { filterPatientRecords } from '../utils/recordFilters';
 import OralHealthConditionSummary from './OralHealthConditionSummary';
 
 import ServicesMonitoringChart, { type ServiceToothData } from './ServicesMonitoringChart';
+
+import DeleteConfirmationModal from './DeleteConfirmationModal';
 
 // Local PC system date & time helper
 const getLocalPCDateTime = () => {
@@ -47,6 +69,37 @@ export const RecordsRetrievalTab: React.FC = () => {
   const [editFormData, setEditFormData] = useState<any>({});
   const [saving, setSaving] = useState<boolean>(false);
   const [saveSuccessId, setSaveSuccessId] = useState<number | null>(null);
+  
+  // -------------------------------------------------------------
+  // DELETE RECORD STATE & HANDLERS
+  // -------------------------------------------------------------
+  const [selectedDeleteRecord, setSelectedDeleteRecord] = useState<any | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  
+  const handleOpenDeleteModal = (rec: any) => {
+    setSelectedDeleteRecord(rec);
+    setIsDeleteModalOpen(true);
+  };
+  
+  const handleConfirmDelete = async () => {
+    if (!selectedDeleteRecord) return;
+    setIsDeleting(true);
+
+    try {
+      await axios.delete(`http://localhost:8000/api/v1/forms/records/${selectedDeleteRecord.id}`);
+
+      // Immediately filter out the deleted record locally
+      setRecords((prev) => prev.filter((r) => r.id !== selectedDeleteRecord.id));
+      setIsDeleteModalOpen(false);
+      setSelectedDeleteRecord(null);
+    } catch (err: any) {
+      console.error('Error deleting patient record:', err.response?.data || err.message);
+      alert(`Failed to delete record: ${err.response?.data?.detail || 'Database server error'}`);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const fetchRecords = async () => {
     setLoading(true);
@@ -309,6 +362,15 @@ export const RecordsRetrievalTab: React.FC = () => {
                     <span className="text-[10px] bg-blue-950 text-blue-300 border border-blue-800 px-2.5 py-1 rounded-md font-mono">
                       {rec.document_id}
                     </span>
+					
+					<button
+                      type="button"
+                      onClick={() => handleOpenDeleteModal(rec)}
+                      title="Delete Record"
+                      className="p-1.5 bg-rose-950/40 hover:bg-rose-900/60 text-rose-400 hover:text-rose-200 border border-rose-800/60 hover:border-rose-600 rounded-lg transition cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
 
                     <button onClick={() => toggleExpand(rec.id)} className="text-slate-400 p-1">
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1178,6 +1240,26 @@ export const RecordsRetrievalTab: React.FC = () => {
           })}
         </div>
       )}
+	  
+	  {/* ------------------------------------------------------------- */}
+      {/* MODULAR DELETE CONFIRMATION MODAL */}
+      {/* ------------------------------------------------------------- */}
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        patientName={
+          selectedDeleteRecord
+            ? `${selectedDeleteRecord.surname || ''}, ${selectedDeleteRecord.first_name || ''}`
+            : ''
+        }
+        isDeleting={isDeleting}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setSelectedDeleteRecord(null);
+        }}
+        onConfirm={handleConfirmDelete}
+      />
+	  
+	  
     </div>
   );
 };

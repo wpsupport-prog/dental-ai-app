@@ -407,39 +407,47 @@ useEffect(() => {
           <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
 
-        {/* Right side Upload, Mobile Snap, Webcam & Process Buttons (Intake Tab Only) */}
         {activeTab === 'intake' && (
-          <div className="flex items-center gap-3">
-            {/* 1. Mobile Camera Capture Button */}
-            <MobileCameraCapture onCapture={handleMobileCapture} />
+  <div className="flex items-center gap-3">
+    {/* ------------------------------------------------------------- */}
+    {/* 1. MOBILE DEVICE ONLY BUTTON (Hidden on Desktop)             */}
+    {/* ------------------------------------------------------------- */}
+    <div className="block md:hidden">
+      <MobileCameraCapture onCapture={handleMobileCapture} />
+    </div>
 
-            {/* 2. File Upload Selector */}
-            <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg text-sm flex items-center gap-2 transition border border-slate-700">
-              <Upload className="w-4 h-4 text-blue-400"/>
-              <span>{file ? file.name : "Select Form Scan"}</span>
-              <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-            </label>
+    {/* ------------------------------------------------------------- */}
+    {/* 2. DESKTOP ONLY BUTTONS (Hidden on Mobile)                   */}
+    {/* ------------------------------------------------------------- */}
+    <div className="hidden md:flex items-center gap-3">
+      {/* File Upload Selector */}
+      <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg text-sm flex items-center gap-2 transition border border-slate-700">
+        <Upload className="w-4 h-4 text-blue-400"/>
+        <span>{file ? file.name : "Select Form Scan"}</span>
+        <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+      </label>
 
-            {/* 3. Webcam / USB Capture */}
-            <button
-              type="button"
-              onClick={() => setIsWebcamOpen(true)}
-              className="bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg text-sm flex items-center gap-2 transition border border-slate-700 text-slate-200 cursor-pointer"
-            >
-              <Camera className="w-4 h-4 text-emerald-400" />
-              <span>Capture via Webcam</span>
-            </button>
+      {/* Webcam / USB Capture */}
+      <button
+        type="button"
+        onClick={() => setIsWebcamOpen(true)}
+        className="bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg text-sm flex items-center gap-2 transition border border-slate-700 text-slate-200 cursor-pointer"
+      >
+        <Camera className="w-4 h-4 text-emerald-400" />
+        <span>Capture via Webcam</span>
+      </button>
 
-            {/* 4. Process AI Button */}
-            <button 
-              onClick={handleUpload}
-              disabled={!file || isUploading}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition cursor-pointer"
-            >
-              {isUploading ? <RefreshCw className="w-4 h-4 animate-spin"/> : "Process with AI"}
-            </button>
-          </div>
-        )}
+      {/* Process AI Button */}
+      <button 
+        onClick={handleUpload}
+        disabled={!file || isUploading}
+        className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition cursor-pointer"
+      >
+        {isUploading ? <RefreshCw className="w-4 h-4 animate-spin"/> : "Process with AI"}
+      </button>
+    </div>
+  </div>
+)}
 		
       </header>
 
