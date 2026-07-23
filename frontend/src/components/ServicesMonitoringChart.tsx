@@ -64,30 +64,43 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
     chartData: {},
   };
 
-  // Safely normalize input data into a non-empty array of ServiceVisitRecord objects
+  // Normalize and sort visits sequentially so Initial Entry is ALWAYS first
   const normalizeVisits = (): { isMultiVisit: boolean; visitsList: ServiceVisitRecord[] } => {
+    let list: ServiceVisitRecord[] = [];
+
     if (Array.isArray(data)) {
-      if (data.length === 0) {
-        return { isMultiVisit: true, visitsList: [defaultInitialVisit] };
+      list = data.length === 0 ? [defaultInitialVisit] : (data as ServiceVisitRecord[]);
+    } else if (data && typeof data === 'object') {
+      list = [
+        {
+          id: 'service-visit-1',
+          visitLabel: 'Initial Entry',
+          visitDate: getLocalPCDateTime(),
+          chartData: (data as Record<string, string>) || {},
+        },
+      ];
+    } else {
+      list = [defaultInitialVisit];
+    }
+
+    // SORT GUARANTEE: Sort chronologically by timestamp/date or ID so Initial Entry stays leftmost
+    const sortedList = [...list].sort((a, b) => {
+      if (a.visitLabel === 'Initial Entry') return -1;
+      if (b.visitLabel === 'Initial Entry') return 1;
+
+      // Extract numeric visit numbers if present (e.g., "Visit 2" vs "Visit 3")
+      const numA = parseInt(a.visitLabel.replace(/\D/g, '')) || 0;
+      const numB = parseInt(b.visitLabel.replace(/\D/g, '')) || 0;
+
+      if (numA !== 0 && numB !== 0) {
+        return numA - numB;
       }
-      return { isMultiVisit: true, visitsList: data as ServiceVisitRecord[] };
-    }
 
-    if (data && typeof data === 'object') {
-      return {
-        isMultiVisit: false,
-        visitsList: [
-          {
-            id: 'service-visit-1',
-            visitLabel: 'Initial Entry',
-            visitDate: getLocalPCDateTime(),
-            chartData: (data as Record<string, string>) || {},
-          },
-        ],
-      };
-    }
+      // Fallback: sort by visitDate timestamp string
+      return new Date(a.visitDate).getTime() - new Date(b.visitDate).getTime();
+    });
 
-    return { isMultiVisit: false, visitsList: [defaultInitialVisit] };
+    return { isMultiVisit: Array.isArray(data), visitsList: sortedList };
   };
 
   const { isMultiVisit, visitsList: visits } = normalizeVisits();
@@ -112,7 +125,8 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
       chartData: {},
     };
 
-    const updatedVisits = [newVisit, ...visits];
+    // APPEND to end of array
+    const updatedVisits = [...visits, newVisit];
     setActiveVisitId(newVisit.id);
     onChange(updatedVisits);
   };
