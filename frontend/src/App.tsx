@@ -1,15 +1,26 @@
 import React, { useState } from 'react';
-import { CheckCircle, FileText, Upload, RefreshCw, Check, HeartPulse, User, ShieldCheck, Stethoscope, Activity, Utensils } from 'lucide-react';
+import { 
+  CheckCircle, 
+  FileText, 
+  Upload, 
+  RefreshCw, 
+  Check, 
+  HeartPulse, 
+  User, 
+  ShieldCheck, 
+  Stethoscope, 
+  Activity, 
+  Utensils, 
+  Camera 
+} from 'lucide-react';
 import axios from 'axios';
 
 import DentalChart from './components/DentalChart';
-
 import { TabNavigation } from './components/TabNavigation';
 import { RecordsRetrievalTab } from './components/RecordsRetrievalTab';
-
 import OralHealthConditionSummary from './components/OralHealthConditionSummary';
-
 import ServicesMonitoringChart, { type ServiceVisitRecord, type ServiceToothData } from './components/ServicesMonitoringChart';
+import WebcamCaptureModal from './components/WebcamCaptureModal';
 
 export type ActiveTab = 'intake' | 'records';
 
@@ -37,6 +48,8 @@ const getLocalPCDateTime = () => {
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<ActiveTab>('intake');
+  
+  const [isWebcamOpen, setIsWebcamOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     // Patient Info
@@ -349,42 +362,53 @@ export default function App() {
           <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
         </div>
 
-        {/* Right side Upload & Process Buttons (Intake Tab Only) */}
+        {/* Right side Upload, Webcam & Process Buttons (Intake Tab Only) */}
         {activeTab === 'intake' && (
           <div className="flex items-center gap-3">
-            <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition border border-slate-700">
+            <label className="cursor-pointer bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg text-sm flex items-center gap-2 transition border border-slate-700">
               <Upload className="w-4 h-4 text-blue-400"/>
               <span>{file ? file.name : "Select Form Scan"}</span>
               <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
             </label>
+
+            <button
+              type="button"
+              onClick={() => setIsWebcamOpen(true)}
+              className="bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg text-sm flex items-center gap-2 transition border border-slate-700 text-slate-200 cursor-pointer"
+            >
+              <Camera className="w-4 h-4 text-emerald-400" />
+              <span>Capture via Webcam</span>
+            </button>
+
             <button 
               onClick={handleUpload}
               disabled={!file || isUploading}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition"
+              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-5 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition cursor-pointer"
             >
               {isUploading ? <RefreshCw className="w-4 h-4 animate-spin"/> : "Process with AI"}
             </button>
           </div>
         )}
+		
       </header>
 
       <main className="flex-1 p-6">
         {activeTab === 'intake' ? (
           <div className="flex gap-6">
             {/* Left Column: Preview */}
-            <section className="w-5/12 bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col sticky top-24 h-[calc(100vh-8rem)]">
-              <div className="flex justify-between items-center mb-3">
-                <span className="text-sm font-semibold text-slate-300">Scanned Document Preview</span>
-                {file && <span className="text-xs text-blue-400 bg-blue-950/60 px-2 py-1 rounded border border-blue-800">{file.name}</span>}
-              </div>
-              <div className="flex-1 bg-slate-900 border border-dashed border-slate-800 rounded-lg flex items-center justify-center text-slate-500 text-sm overflow-hidden p-2">
-                {imagePreview ? (
-                  <img src={imagePreview} alt="Scanned Form" className="max-h-full max-w-full object-contain rounded" />
-                ) : (
-                  <p>Upload a form scan to preview</p>
-                )}
-              </div>
-            </section>
+			<section className="w-5/12 bg-slate-950 border border-slate-800 rounded-xl p-4 flex flex-col sticky top-24 h-[calc(100vh-8rem)]">
+			  <div className="flex justify-between items-center mb-3">
+				<span className="text-sm font-semibold text-slate-300">Scanned Document Preview</span>
+				{file && <span className="text-xs text-blue-400 bg-blue-950/60 px-2 py-1 rounded border border-blue-800">{file.name}</span>}
+			  </div>
+			  <div className="flex-1 bg-slate-900 border border-dashed border-slate-800 rounded-lg flex items-center justify-center text-slate-500 text-sm overflow-hidden p-2">
+				{imagePreview ? (
+				  <img src={imagePreview} alt="Scanned Form" className="max-h-full max-w-full object-contain rounded" />
+				) : (
+				  <p>Upload a form scan to preview</p>
+				)}
+			  </div>
+			</section>
 
             {/* Right Column: Interactive Form & Chart */}
             <section className="w-7/12 bg-slate-950 border border-slate-800 rounded-xl p-6 flex flex-col justify-between space-y-6">
@@ -725,6 +749,17 @@ export default function App() {
           <RecordsRetrievalTab />
         )}
       </main>
+	  
+	  {/* Webcam Modal Component */}
+      <WebcamCaptureModal
+        isOpen={isWebcamOpen}
+        onClose={() => setIsWebcamOpen(false)}
+        onCapture={(capturedFile, previewUrl) => {
+          setFile(capturedFile);
+          setImagePreview(previewUrl);
+          setSavedSuccess(false);
+        }}
+      />
     </div>
   );
 }
