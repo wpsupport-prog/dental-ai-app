@@ -23,5 +23,6 @@ export default defineConfig({
   server: {
     port: 5173,
     host: true,
+	host: '0.0.0.0', // Exposes dev server on all network interfaces for mobile phone access
   },
 });
