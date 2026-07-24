@@ -111,6 +111,27 @@ function MobileConnectModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
   );
 }
 
+// Define initial blank form state at top-level
+const INITIAL_FORM_STATE = {
+  surname: '', firstName: '', middleInitial: '', dob: '', age: '',
+  sex: '', civilStatus: '', placeOfBirth: '', address: '', occupation: '',
+  parentGuardian: '', philhealthNo: '', yakapProvider: '', contactNo: '', signedName: '',
+  bloodPressure: '', pulseRate: '', temperature: '', height: '', weight: '',
+  nhtsPr: false, fourPs: false, indigenousPeople: false, pwds: false,
+  allergiesChecked: false, allergiesSpecified: '', hypertensionCva: false,
+  diabetesMellitus: false, bloodDisorder: false, cardiovascularHeartDiseases: false,
+  thyroidDisorders: false, hepatitisChecked: false, hepatitisSpecified: '',
+  malignancyChecked: false, malignancySpecified: '',
+  medicalHospitalizationChecked: false, medicalHospitalizationSpecified: '',
+  surgicalChecked: false, surgicalSpecified: '', bloodTransfusionChecked: false,
+  bloodTransfusionSpecified: '', tattooChecked: false, tattooSpecified: '',
+  othersChecked: false, othersSpecified: '',
+  sugarBeveragesChecked: false, sugarBeveragesSpecified: '',
+  useAlcoholChecked: false, useAlcoholSpecified: '',
+  useTobaccoChecked: false, useTobaccoSpecified: '',
+  betelNutChecked: false, betelNutSpecified: ''
+};
+
 export default function App() {
 	
 	// Inside your main App() component:
@@ -145,7 +166,10 @@ useEffect(() => {
   return () => clearInterval(syncInterval);
 }, []);
 	
-	
+  // Clear any residual form data / mobile scan buffers on fresh app load
+  useEffect(() => {
+    resetAllFormState();
+  }, []);
 	
   const [activeTab, setActiveTab] = useState<ActiveTab>('intake');
   
@@ -221,6 +245,32 @@ useEffect(() => {
 
   const [file, setFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  
+  // 2. DEFINE THE RESET HELPER FUNCTION
+  const resetAllFormState = async () => {
+    setFormData(INITIAL_FORM_STATE);
+    setFile(null);
+    setImagePreview(null);
+    setConfidence(0.98);
+    setSavedSuccess(false);
+
+    setVisits([
+      {
+        id: 'visit-1',
+        visitLabel: 'Year I',
+        visitDate: getLocalPCDateTime(),
+        chartData: {},
+      },
+    ]);
+    setServicesData([]);
+
+    try {
+      await axios.post('http://localhost:8000/api/v1/sync/clear');
+    } catch (err) {
+      console.warn("Backend sync buffer clear note:", err);
+    }
+  };
+  
   const [isUploading, setIsUploading] = useState(false);
   const [confidence, setConfidence] = useState<number>(0.98);
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -445,6 +495,10 @@ useEffect(() => {
       });
 
       setSavedSuccess(true);
+	  
+	  // CLEAR ALL FORM FIELDS, IMAGE PREVIEW & MOBILE BUFFER INSTANTLY
+      await resetAllFormState();
+	  
     } catch (error: any) {
       console.error('Error saving to database:', error.response?.data || error.message);
       alert(`Failed to save record to database: ${error.response?.data?.detail || 'Server error'}`);
