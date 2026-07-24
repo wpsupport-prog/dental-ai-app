@@ -103,7 +103,7 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
     return { isMultiVisit: Array.isArray(data), visitsList: sortedList };
   };
 
-  const { isMultiVisit, visitsList: visits } = normalizeVisits();
+  const { visitsList: visits } = normalizeVisits();
 
   const [activeVisitId, setActiveVisitId] = useState<string>(visits[0]?.id || 'service-visit-1');
 

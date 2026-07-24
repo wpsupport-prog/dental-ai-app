@@ -25,7 +25,7 @@ import DentalChart from './DentalChart';
 import { filterPatientRecords } from '../utils/recordFilters';
 import OralHealthConditionSummary from './OralHealthConditionSummary';
 
-import ServicesMonitoringChart, { type ServiceToothData } from './ServicesMonitoringChart';
+import ServicesMonitoringChart from './ServicesMonitoringChart';
 
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 

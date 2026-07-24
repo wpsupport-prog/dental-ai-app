@@ -1,24 +1,75 @@
-# Python / FastAPI
+# ==========================================
+# Python / FastAPI / Virtual Environments
+# ==========================================
 __pycache__/
 *.py[cod]
 *$py.class
 venv/
+.venv/
+env/
+ENV/
 .env
 
-# Node.js / React
+# ==========================================
+# PyInstaller & Backend Build Output
+# ==========================================
+build/
+dist/
+*.manifest
+*.spec
+backend/dist/
+backend/build/
+
+# ==========================================
+# Database & Temp Files
+# ==========================================
+*.db
+*.sqlite
+*.sqlite3
+sync_state.json
+
+# Keep uploads directory structure, but ignore uploaded images/files
+uploads/*
+!uploads/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+backend/uploads/temp/*
+!backend/uploads/temp/.gitkeep
+
+# ==========================================
+# Node.js / React Frontend
+# ==========================================
+node_modules/
 frontend/node_modules/
 frontend/dist/
 frontend/build/
-.DS_Store
+.eslintcache
 
-# AI Models & Local Storage
+# ==========================================
+# Tauri / Rust Build Artifacts & Sidecar Binaries
+# ==========================================
+src-tauri/target/
+frontend/src-tauri/target/
+*.exe
+*.dll
+*.so
+*.dylib
+# Ignore compiled sidecar binaries, keep directories
+frontend/src-tauri/binaries/*.exe
+
+# ==========================================
+# AI Models & Local Heavy Files
+# ==========================================
 *.bin
 *.safetensors
 *.gguf
 .ollama/
-uploads/
 
-# IDE / System
+# ==========================================
+# IDE & Operating System Files
+# ==========================================
 .vscode/
 .idea/
 *.log
+.DS_Store
+Thumbs.db

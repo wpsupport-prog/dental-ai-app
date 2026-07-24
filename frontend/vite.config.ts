@@ -22,7 +22,10 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    host: true,
 	host: '0.0.0.0', // Exposes dev server on all network interfaces for mobile phone access
+	watch: {
+      // Ignore Rust build target directory to prevent EBUSY lock errors
+      ignored: ['**/src-tauri/**'],
+    },
   },
 });

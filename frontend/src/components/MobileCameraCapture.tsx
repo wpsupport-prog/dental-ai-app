@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { Camera, Smartphone, Check, RefreshCw } from 'lucide-react';
+import { Smartphone, Check, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 
 interface MobileCameraCaptureProps {

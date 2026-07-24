@@ -11,8 +11,12 @@ import {
   Stethoscope, 
   Activity, 
   Utensils, 
-  Camera 
+  Camera,
+	QrCode // <-- ADD THIS ICON
 } from 'lucide-react';
+
+import { QRCodeSVG } from 'qrcode.react'; // <-- ADD THIS IMPORT
+
 import axios from 'axios';
 
 import DentalChart from './components/DentalChart';
@@ -48,6 +52,64 @@ const getLocalPCDateTime = () => {
     hour12: true,
   });
 };
+
+function MobileConnectModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [mobileUrl, setMobileUrl] = useState<string>("http://localhost:8000/scan");
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Fetch dynamic host local IP address every time modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsLoading(true);
+      axios.get("http://localhost:8000/api/v1/system/ip")
+        .then((res) => {
+          if (res.data && res.data.scan_url) {
+            setMobileUrl(res.data.scan_url);
+          }
+        })
+        .catch((err) => {
+          console.error("Error fetching system IP:", err);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    }
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-700 rounded-xl p-6 max-w-sm w-full text-center space-y-4 shadow-2xl">
+        <h3 className="text-lg font-bold text-slate-100 flex items-center justify-center gap-2">
+          📱 Scan to Connect Mobile Camera
+        </h3>
+        <p className="text-xs text-slate-400">
+          Point your smartphone camera at this QR code to open the mobile intake form scanner:
+        </p>
+        
+        <div className="bg-white p-4 rounded-lg inline-block my-2">
+          {isLoading ? (
+            <div className="w-[180px] h-[180px] flex items-center justify-center text-slate-800 text-xs font-semibold">
+              Generating Network QR...
+            </div>
+          ) : (
+            <QRCodeSVG value={mobileUrl} size={180} includeMargin={true} />
+          )}
+        </div>
+        
+        <p className="text-xs font-mono text-blue-400 break-all">{mobileUrl}</p>
+
+        <button
+          onClick={onClose}
+          className="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 py-2 rounded-lg text-sm font-semibold transition border border-slate-700"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
 	
@@ -87,6 +149,7 @@ useEffect(() => {
 	
   const [activeTab, setActiveTab] = useState<ActiveTab>('intake');
   
+  const [isQrOpen, setIsQrOpen] = useState(false);
   const [isWebcamOpen, setIsWebcamOpen] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -427,6 +490,16 @@ useEffect(() => {
         <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
       </label>
 
+		{/* Mobile QR Connect Button */}
+	  <button
+		type="button"
+		onClick={() => setIsQrOpen(true)}
+		className="bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-lg text-sm flex items-center gap-2 transition border border-slate-700 text-slate-200 cursor-pointer"
+	  >
+		<QrCode className="w-4 h-4 text-sky-400" />
+		<span>Mobile Camera QR</span>
+	  </button>
+  
       {/* Webcam / USB Capture */}
       <button
         type="button"
@@ -808,6 +881,12 @@ useEffect(() => {
           <RecordsRetrievalTab />
         )}
       </main>
+	  
+	  {/* Mobile QR Code Modal */}
+      <MobileConnectModal 
+        isOpen={isQrOpen} 
+        onClose={() => setIsQrOpen(false)} 
+      />
 	  
 	  {/* Webcam Modal Component */}
       <WebcamCaptureModal

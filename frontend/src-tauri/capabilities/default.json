@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Default permissions for Dental AI Suite",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "shell:allow-open",
+    "shell:allow-execute",
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/dental-backend",
+          "sidecar": true
+        },
+        {
+          "name": "binaries/ollama",
+          "sidecar": true
+        }
+      ]
+    }
+  ]
+}
