@@ -53,15 +53,18 @@ const getLocalPCDateTime = () => {
   });
 };
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
+
 function MobileConnectModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [mobileUrl, setMobileUrl] = useState<string>("http://localhost:8000/scan");
+	
+  const [mobileUrl, setMobileUrl] = useState<string>(`${API_BASE_URL}/scan`);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Fetch dynamic host local IP address every time modal opens
   useEffect(() => {
     if (isOpen) {
       setIsLoading(true);
-      axios.get("http://localhost:8000/api/v1/system/ip")
+      axios.get(`${API_BASE_URL}/api/v1/system/ip`)
         .then((res) => {
           if (res.data && res.data.scan_url) {
             setMobileUrl(res.data.scan_url);
@@ -141,7 +144,7 @@ useEffect(() => {
   // Poll backend every 2 seconds for new photos taken from mobile phone
   const syncInterval = setInterval(async () => {
     try {
-      const response = await axios.get('http://localhost:8000/api/v1/sync/latest');
+      const response = await axios.get(`${API_BASE_URL}/api/v1/sync/latest`);
       const data = response.data;
 
       if (data && data.url && data.timestamp > lastSyncedTimestamp.current) {
@@ -265,7 +268,7 @@ useEffect(() => {
     setServicesData([]);
 
     try {
-      await axios.post('http://localhost:8000/api/v1/sync/clear');
+      await axios.post(`${API_BASE_URL}/api/v1/sync/clear`);
     } catch (err) {
       console.warn("Backend sync buffer clear note:", err);
     }
@@ -313,7 +316,7 @@ useEffect(() => {
     bodyFormData.append('file', file);
 
     try {
-      const response = await axios.post('http://localhost:8000/api/v1/forms/upload', bodyFormData, {
+      const response = await axios.post(`${API_BASE_URL}/api/v1/forms/upload`, bodyFormData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
 
@@ -423,7 +426,7 @@ useEffect(() => {
   // Save full record including multi-visit dental chart entries
  const handleSaveDatabase = async () => {
     try {
-      await axios.post('http://localhost:8000/api/v1/forms/save', {
+      await axios.post(`${API_BASE_URL}/api/v1/forms/save`, {
         document_id: `doc_${Date.now()}`,
         confidence_score: confidence,
         requires_review: false,
