@@ -53,31 +53,35 @@ const getLocalPCDateTime = () => {
   });
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${window.location.hostname}:8000`;
+// Define dynamic API Base URL safely handling WebView2 / Tauri production schemes
+const rawHost = window.location.hostname;
+const hostName = (rawHost === 'tauri.localhost' || !rawHost) ? '127.0.0.1' : rawHost;
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${hostName}:8000`;
 
 function MobileConnectModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-	
-  const [mobileUrl, setMobileUrl] = useState<string>(`${API_BASE_URL}/scan`);
+  // Default fallback uses explicit loopback 127.0.0.1 (never tauri.localhost)
+  const [mobileUrl, setMobileUrl] = useState<string>("http://127.0.0.1:8000/scan");
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Fetch dynamic host local IP address every time modal opens
-  useEffect(() => {
-    if (isOpen) {
-      setIsLoading(true);
-      axios.get(`${API_BASE_URL}/api/v1/system/ip`)
-        .then((res) => {
-          if (res.data && res.data.scan_url) {
-            setMobileUrl(res.data.scan_url);
-          }
-        })
-        .catch((err) => {
-          console.error("Error fetching system IP:", err);
-        })
-        .finally(() => {
-          setIsLoading(false);
-        });
-    }
-  }, [isOpen]);
+  // Fetch true LAN IP from FastAPI sidecar every time modal opens
+	useEffect(() => {
+	  if (isOpen) {
+		setIsLoading(true);
+		// Use API_BASE_URL so it proxies or connects directly
+		axios.get(`${API_BASE_URL}/api/v1/system/ip`)
+		  .then((res) => {
+			if (res.data && res.data.scan_url) {
+			  setMobileUrl(res.data.scan_url);
+			}
+		  })
+		  .catch((err) => {
+			console.error("Error fetching system IP:", err);
+		  })
+		  .finally(() => {
+			setIsLoading(false);
+		  });
+	  }
+	}, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -94,7 +98,7 @@ function MobileConnectModal({ isOpen, onClose }: { isOpen: boolean; onClose: () 
         <div className="bg-white p-4 rounded-lg inline-block my-2">
           {isLoading ? (
             <div className="w-[180px] h-[180px] flex items-center justify-center text-slate-800 text-xs font-semibold">
-              Generating Network QR...
+              Detecting Local Network...
             </div>
           ) : (
             <QRCodeSVG value={mobileUrl} size={180} includeMargin={true} />
@@ -141,7 +145,6 @@ export default function App() {
 const lastSyncedTimestamp = useRef<number>(0);
 
 useEffect(() => {
-  // Poll backend every 2 seconds for new photos taken from mobile phone
   const syncInterval = setInterval(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/api/v1/sync/latest`);
@@ -150,19 +153,22 @@ useEffect(() => {
       if (data && data.url && data.timestamp > lastSyncedTimestamp.current) {
         lastSyncedTimestamp.current = data.timestamp;
 
-        // Fetch image as File blob so desktop treats it as an active upload file
-        const imageBlob = await fetch(data.url).then((r) => r.blob());
+        // Guarantee full absolute URL pointing to FastAPI port 8000
+        const targetUrl = data.url.startsWith('http') 
+          ? data.url 
+          : `${API_BASE_URL}${data.url.startsWith('/') ? '' : '/'}${data.url}`;
+
+        const imageBlob = await fetch(targetUrl).then((r) => r.blob());
         const syncedFile = new File([imageBlob], data.filename || 'mobile_scan.jpg', {
-          type: imageBlob.type,
+          type: imageBlob.type || 'image/jpeg',
         });
 
-        // Set state on Desktop automatically!
         setFile(syncedFile);
-        setImagePreview(data.url);
+        setImagePreview(targetUrl);
         setSavedSuccess(false);
       }
     } catch (err) {
-      // Ignore polling errors silently
+      // Ignore background sync errors
     }
   }, 2000);
 
