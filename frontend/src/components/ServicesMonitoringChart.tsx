@@ -32,6 +32,12 @@ const getLocalPCDateTime = () => {
   });
 };
 
+// Sanitizes legacy default labels like "Initial Entry" to an empty string ""
+const sanitizeServiceLabel = (label?: string): string => {
+  if (!label || label === 'Initial Entry') return '';
+  return label;
+};
+
 // Layout definitions matching FDI numbering scheme
 const TEMP_TOP_TEETH = ['55', '54', '53', '52', '51', '61', '62', '63', '64', '65'];
 const TEMP_BOTTOM_TEETH = ['85', '84', '83', '82', '81', '71', '72', '73', '74', '75'];
@@ -59,12 +65,12 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
   // Helper fallback visit item
   const defaultInitialVisit: ServiceVisitRecord = {
     id: 'service-visit-1',
-    visitLabel: 'Initial Entry',
+    visitLabel: '',
     visitDate: getLocalPCDateTime(),
     chartData: {},
   };
 
-  // Normalize and sort visits sequentially so Initial Entry is ALWAYS first
+  // Normalize and sort visits sequentially
   const normalizeVisits = (): { isMultiVisit: boolean; visitsList: ServiceVisitRecord[] } => {
     let list: ServiceVisitRecord[] = [];
 
@@ -74,7 +80,7 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
       list = [
         {
           id: 'service-visit-1',
-          visitLabel: 'Initial Entry',
+          visitLabel: '',
           visitDate: getLocalPCDateTime(),
           chartData: (data as Record<string, string>) || {},
         },
@@ -83,12 +89,7 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
       list = [defaultInitialVisit];
     }
 
-    // SORT GUARANTEE: Sort chronologically by timestamp/date or ID so Initial Entry stays leftmost
     const sortedList = [...list].sort((a, b) => {
-      if (a.visitLabel === 'Initial Entry') return -1;
-      if (b.visitLabel === 'Initial Entry') return 1;
-
-      // Extract numeric visit numbers if present (e.g., "Visit 2" vs "Visit 3")
       const numA = parseInt(a.visitLabel.replace(/\D/g, '')) || 0;
       const numB = parseInt(b.visitLabel.replace(/\D/g, '')) || 0;
 
@@ -96,7 +97,6 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
         return numA - numB;
       }
 
-      // Fallback: sort by visitDate timestamp string
       return new Date(a.visitDate).getTime() - new Date(b.visitDate).getTime();
     });
 
@@ -125,9 +125,26 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
       chartData: {},
     };
 
-    // APPEND to end of array
     const updatedVisits = [...visits, newVisit];
     setActiveVisitId(newVisit.id);
+    onChange(updatedVisits);
+  };
+
+  // Update logLabel
+  const handleServiceLabelChange = (newLabel: string) => {
+    if (!isEditable || !onChange) return;
+    const updatedVisits = visits.map((v) =>
+      v.id === activeVisit.id ? { ...v, visitLabel: newLabel } : v
+    );
+    onChange(updatedVisits);
+  };
+
+  // Update visitDate with local date/time fallback
+  const handleServiceDateChange = (newDate: string) => {
+    if (!isEditable || !onChange) return;
+    const updatedVisits = visits.map((v) =>
+      v.id === activeVisit.id ? { ...v, visitDate: newDate } : v
+    );
     onChange(updatedVisits);
   };
 
@@ -236,11 +253,38 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
       )}
 
       {/* Active Visit Info Subheader */}
-      <div className="flex justify-between items-center text-[11px] font-mono text-slate-400 px-1">
-        <span>Active Log: <strong className="text-slate-200">{activeVisit?.visitLabel || 'Initial Entry'}</strong></span>
-        <span className="flex items-center gap-1 text-blue-400">
-          <Calendar className="w-3.5 h-3.5" /> Date/Time: {activeVisit?.visitDate || getLocalPCDateTime()}
-        </span>
+      <div className="flex justify-between items-center text-xs text-slate-400 px-1">
+        {/* Left Side: Editable Active Log Name */}
+        <div className="flex items-center gap-2">
+          <span>Active Log:</span>
+          <input
+            type="text"
+            readOnly={!isEditable}
+            value={sanitizeServiceLabel(activeVisit?.visitLabel)}
+            onChange={(e) => handleServiceLabelChange(e.target.value)}
+            className="bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs px-2 py-1 rounded w-36 focus:outline-none focus:border-blue-500"
+            placeholder="mm/dd/yyyy"
+          />
+        </div>
+
+        {/* Right Side: Editable Date/Time with Local Timestamp Fallback */}
+        <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded text-blue-400 font-mono text-[11px]">
+          <Calendar className="w-3.5 h-3.5 text-blue-400" />
+          <span className="text-slate-400 text-xs">Date/Time:</span>
+          <input
+            type="text"
+            readOnly={!isEditable}
+            value={activeVisit?.visitDate || getLocalPCDateTime()}
+            onChange={(e) => handleServiceDateChange(e.target.value)}
+            onBlur={(e) => {
+              if (!e.target.value.trim()) {
+                handleServiceDateChange(getLocalPCDateTime());
+              }
+            }}
+            className="bg-slate-950 border border-slate-700 text-emerald-400 font-mono text-xs px-2 py-0.5 rounded w-48 text-center focus:outline-none focus:border-emerald-500"
+            placeholder="MM/DD/YYYY, hh:mm:ss AM"
+          />
+        </div>
       </div>
 
       {/* Tooth Boxes Canvas Container */}

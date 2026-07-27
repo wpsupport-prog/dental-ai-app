@@ -53,6 +53,16 @@ const getLocalPCDateTime = () => {
   });
 };
 
+// Helper to get local date string in MM/DD/YYYY format
+const getLocalDateOnly = (): string => {
+  const now = new Date();
+  return now.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  });
+};
+
 // Define dynamic API Base URL safely handling WebView2 / Tauri production schemes
 const rawHost = window.location.hostname;
 const hostName = (rawHost === 'tauri.localhost' || !rawHost) ? '127.0.0.1' : rawHost;
@@ -266,7 +276,7 @@ useEffect(() => {
     setVisits([
       {
         id: 'visit-1',
-        visitLabel: 'Year I',
+        visitLabel: 'Visit 1',
         visitDate: getLocalPCDateTime(),
         chartData: {},
       },
@@ -288,7 +298,7 @@ useEffect(() => {
   const [visits, setVisits] = useState<DentalVisitRecord[]>([
     {
       id: 'visit-1',
-      visitLabel: 'Year I',
+      visitLabel: 'Visit 1',
       visitDate: getLocalPCDateTime(),
       chartData: {},
     },
@@ -430,8 +440,34 @@ useEffect(() => {
   };
   
   // Save full record including multi-visit dental chart entries
- const handleSaveDatabase = async () => {
+  const handleSaveDatabase = async () => {
     try {
+      // 1. Sanitize Oral Health Chart Visits payload
+      const sanitizedDentalVisits = visits.map((v) => {
+        const rawLabel = v.visitLabel ? v.visitLabel.trim() : '';
+        const rawDate = v.visitDate ? v.visitDate.trim() : '';
+
+        return {
+          ...v,
+          // If custom date was entered, save it. Otherwise fallback to current local PC date (MM/DD/YYYY)
+          visitLabel: rawLabel !== '' && rawLabel !== 'Year I' ? rawLabel : getLocalDateOnly(),
+          visitDate: rawDate !== '' ? rawDate : getLocalPCDateTime(),
+        };
+      });
+
+      // 2. Sanitize Services Monitoring payload if structured as an array of visits
+      const sanitizedServicesData = Array.isArray(servicesData)
+        ? servicesData.map((s) => {
+            const rawLabel = s.visitLabel ? s.visitLabel.trim() : '';
+            const rawDate = s.visitDate ? s.visitDate.trim() : '';
+            return {
+              ...s,
+              visitLabel: rawLabel !== '' && rawLabel !== 'Initial Entry' ? rawLabel : getLocalDateOnly(),
+              visitDate: rawDate !== '' ? rawDate : getLocalPCDateTime(),
+            };
+          })
+        : servicesData;
+
       await axios.post(`${API_BASE_URL}/api/v1/forms/save`, {
         document_id: `doc_${Date.now()}`,
         confidence_score: confidence,
@@ -457,8 +493,8 @@ useEffect(() => {
           blood_pressure: formData.bloodPressure,
           pulse_rate: formData.pulseRate,
           temperature: formData.temperature,
-		  height: formData.height,  // <-- Added
-          weight: formData.weight,  // <-- Added
+          height: formData.height,
+          weight: formData.weight,
         },
         memberships: {
           nhts_pr: formData.nhtsPr,
@@ -499,13 +535,13 @@ useEffect(() => {
           betel_nut_checked: formData.betelNutChecked,
           betel_nut_specified: formData.betelNutSpecified,
         },
-        dental_chart: visits,
-		services_monitoring: servicesData, // <-- Added payload
+        dental_chart: sanitizedDentalVisits,
+        services_monitoring: sanitizedServicesData,
       });
 
       setSavedSuccess(true);
-	  
-	  // CLEAR ALL FORM FIELDS, IMAGE PREVIEW & MOBILE BUFFER INSTANTLY
+      
+      // CLEAR ALL FORM FIELDS, IMAGE PREVIEW & MOBILE BUFFER INSTANTLY
       await resetAllFormState();
 	  
     } catch (error: any) {
@@ -513,7 +549,7 @@ useEffect(() => {
       alert(`Failed to save record to database: ${error.response?.data?.detail || 'Server error'}`);
     }
   };
-
+  
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans pb-12">
       <header className="border-b border-slate-800 bg-slate-950 px-6 py-4 flex justify-between items-center sticky top-0 z-50">

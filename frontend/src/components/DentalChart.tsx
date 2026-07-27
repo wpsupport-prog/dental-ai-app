@@ -5,8 +5,9 @@ import { LegendsPalette, DENTAL_LEGENDS } from './LegendsPalette';
 
 export interface DentalVisitRecord {
   id: string;
-  visitLabel: string;
-  visitDate: string;
+  visitLabel: string;   // Keeps the tab title static (e.g., "Visit 1")
+  entryDate?: string;   // Stores the specific date typed (e.g., "06/12/2024")
+  visitDate: string;    // Timestamp (e.g., "07/28/2026, 07:41:09 AM")
   chartData: Record<string, string>;
 }
 
@@ -14,6 +15,16 @@ interface DentalChartProps {
   visits: DentalVisitRecord[];
   setVisits: React.Dispatch<React.SetStateAction<DentalVisitRecord[]>>;
 }
+
+// Helper to get local date string in MM/DD/YYYY format
+export const getLocalDateOnly = (): string => {
+  const now = new Date();
+  return now.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  });
+};
 
 export const getLocalPCDateTime = () => {
   const now = new Date();
@@ -28,6 +39,12 @@ export const getLocalPCDateTime = () => {
   });
 };
 
+// Sanitizes legacy labels like "Year I" to empty string if needed
+const sanitizeLabel = (label: string): string => {
+  if (label === 'Year I') return '';
+  return label ?? '';
+};
+
 const TEMP_UPPER = ['55', '54', '53', '52', '51', '61', '62', '63', '64', '65'];
 const PERM_UPPER = ['18', '17', '16', '15', '14', '13', '12', '11', '21', '22', '23', '24', '25', '26', '27', '28'];
 const PERM_LOWER = ['48', '47', '46', '45', '44', '43', '42', '41', '31', '32', '33', '34', '35', '36', '37', '38'];
@@ -39,14 +56,13 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
 
   const activeVisit = visits.find((v) => v.id === activeVisitId) || visits[0];
 
+  // Add Patient Return Visit Chart Handler (Generates: Visit 2, Visit 3, etc.)
   const handleAddVisit = () => {
-    const nextNumber = visits.length + 1;
-    const RomanNumerals = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
-    const label = `Year ${RomanNumerals[nextNumber - 1] || nextNumber}`;
-
+    const nextVisitNumber = visits.length + 1;
     const newVisit: DentalVisitRecord = {
       id: `visit-${Date.now()}`,
-      visitLabel: label,
+      visitLabel: `Visit ${nextVisitNumber}`,
+      entryDate: '',
       visitDate: getLocalPCDateTime(),
       chartData: {},
     };
@@ -116,6 +132,18 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
     );
   };
 
+  const handleLabelChange = (newLabel: string) => {
+    setVisits((prevVisits) =>
+      prevVisits.map((v) => (v.id === activeVisitId ? { ...v, visitLabel: newLabel } : v))
+    );
+  };
+
+  const handleEntryDateChange = (newEntryDate: string) => {
+    setVisits((prevVisits) =>
+      prevVisits.map((v) => (v.id === activeVisitId ? { ...v, entryDate: newEntryDate } : v))
+    );
+  };
+
   const handleDateChange = (newDate: string) => {
     setVisits((prevVisits) =>
       prevVisits.map((v) => (v.id === activeVisitId ? { ...v, visitDate: newDate } : v))
@@ -143,7 +171,7 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
 
       {/* Patient Visit Log Navigation Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1">
-        {visits.map((visit) => {
+        {visits.map((visit, index) => {
           const isActive = visit.id === activeVisitId;
           const markCount = Object.keys(visit.chartData).length;
 
@@ -151,7 +179,7 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
             <div
               key={visit.id}
               onClick={() => setActiveVisitId(visit.id)}
-              className={`cursor-pointer border rounded-lg px-3 py-2 text-xs flex items-center gap-2 transition min-w-[150px] ${
+              className={`cursor-pointer border rounded-lg px-3 py-2 text-xs flex items-center gap-2 transition min-w-[170px] ${
                 isActive
                   ? 'bg-blue-950/80 border-blue-500 text-blue-200 font-bold shadow-sm'
                   : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
@@ -159,14 +187,28 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
             >
               <div className="flex-1">
                 <div className="flex justify-between items-center">
-                  <span>{visit.visitLabel}</span>
+                  <input
+                    type="text"
+                    value={sanitizeLabel(visit.visitLabel) || `Visit ${index + 1}`}
+                    onChange={(e) => {
+                      const newLabel = e.target.value;
+                      setVisits((prev) =>
+                        prev.map((v) => (v.id === visit.id ? { ...v, visitLabel: newLabel } : v))
+                      );
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bg-transparent font-bold text-xs text-blue-100 focus:outline-none focus:border-b focus:border-blue-400 w-24"
+                    placeholder={`Visit ${index + 1}`}
+                  />
                   {markCount > 0 && (
                     <span className="text-[10px] bg-blue-600 text-white px-1.5 py-0.2 rounded-full font-mono">
                       {markCount}
                     </span>
                   )}
                 </div>
-                <div className="text-[10px] text-slate-400 font-mono mt-0.5">{visit.visitDate}</div>
+                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                  {visit.visitDate || getLocalPCDateTime()}
+                </div>
               </div>
 
               {visits.length > 1 && (
@@ -190,19 +232,34 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
       {/* Active Visit Info Sub-Bar */}
       {activeVisit && (
         <div className="flex justify-between items-center bg-slate-900/90 border border-slate-800 px-4 py-2 rounded-lg text-xs">
+          {/* Left: Independent Record Entry Date Input */}
           <div className="flex items-center gap-2 text-slate-300">
             <Calendar className="w-4 h-4 text-blue-400" />
-            <span className="font-bold text-blue-300">{activeVisit.visitLabel} Record Entry</span>
+            <input
+              type="text"
+              value={activeVisit.entryDate || ''}
+              onChange={(e) => handleEntryDateChange(e.target.value)}
+              className="bg-slate-950 border border-slate-700 text-blue-300 font-bold px-2 py-1 rounded text-xs w-28 text-center focus:outline-none focus:border-blue-500"
+              placeholder="MM/DD/YYYY"
+            />
+            <span className="font-bold text-blue-300">Record Entry</span>
           </div>
 
+          {/* Right: Editable Visit Date & Time Input with Default Fallback */}
           <div className="flex items-center gap-2">
             <Clock className="w-3.5 h-3.5 text-slate-400" />
             <span className="text-slate-400">Visit Date & Time:</span>
             <input
               type="text"
-              value={activeVisit.visitDate}
+              value={activeVisit.visitDate || getLocalPCDateTime()}
               onChange={(e) => handleDateChange(e.target.value)}
-              className="bg-slate-950 border border-slate-700 text-emerald-400 font-mono px-2 py-1 rounded text-xs w-48 text-center"
+              onBlur={(e) => {
+                if (!e.target.value.trim()) {
+                  handleDateChange(getLocalPCDateTime());
+                }
+              }}
+              className="bg-slate-950 border border-slate-700 text-emerald-400 font-mono px-2 py-1 rounded text-xs w-48 text-center focus:outline-none focus:border-emerald-500"
+              placeholder="MM/DD/YYYY, hh:mm:ss AM"
             />
           </div>
         </div>
