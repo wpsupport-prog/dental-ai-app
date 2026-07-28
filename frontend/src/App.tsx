@@ -12,7 +12,8 @@ import {
   Activity, 
   Utensils, 
   Camera,
-	QrCode // <-- ADD THIS ICON
+	QrCode, // <-- ADD THIS ICON
+	BarChart3 // <-- ADD THIS ICON HERE
 } from 'lucide-react';
 
 import { QRCodeSVG } from 'qrcode.react'; // <-- ADD THIS IMPORT
@@ -29,7 +30,9 @@ import MobileCameraCapture from './components/MobileCameraCapture'; // <-- ADD T
 
 import RecordOfServicesRendered, { type ServiceRenderedRow } from './components/RecordOfServicesRendered';
 
-export type ActiveTab = 'intake' | 'records';
+import { MonthlyReportView } from './components/MonthlyReportView'; // <-- ADD THIS IMPORT LINE HERE
+
+export type ActiveTab = 'intake' | 'records' | 'reports';
 
 import { useEffect, useRef } from 'react';
 
@@ -660,8 +663,36 @@ useEffect(() => {
             </div>
           </div>
 
-          {/* Toggle Menu Right beside Header Logo */}
-          <TabNavigation activeTab={activeTab} setActiveTab={setActiveTab} />
+          {/* Toggle Navigation Menu Right beside Header Logo */}
+			<div className="flex items-center gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800">
+			  <button
+				onClick={() => setActiveTab('intake')}
+				className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+				  activeTab === 'intake' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+				}`}
+			  >
+				<FileText className="w-4 h-4" /> Intake Form
+			  </button>
+
+			  <button
+				onClick={() => setActiveTab('records')}
+				className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+				  activeTab === 'records' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+				}`}
+			  >
+				<User className="w-4 h-4" /> Patient Registry
+			  </button>
+
+			  <button
+				onClick={() => setActiveTab('reports')}
+				className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+				  activeTab === 'reports' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+				}`}
+			  >
+				<BarChart3 className="w-4 h-4" /> Monthly Reports
+			  </button>
+			</div>
+
         </div>
 
         {activeTab === 'intake' && (
@@ -1112,10 +1143,16 @@ useEffect(() => {
               </div>
             </section>
           </div>
-        ) : (
+        ) : activeTab === 'records' ? (
           /* Records Registry View Tab */
           <RecordsRetrievalTab />
-        )}
+        ) : (
+          /* 🎯 Monthly Consolidated Report View Tab */
+          <MonthlyReportView />
+		
+     )}
+		
+		
       </main>
 	  
 	  {/* Mobile QR Code Modal */}
