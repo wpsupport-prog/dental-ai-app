@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ClipboardList, Plus, Trash2, Calendar } from 'lucide-react';
 
 export interface ServiceRenderedRow {
@@ -52,6 +52,28 @@ export const RecordOfServicesRendered: React.FC<RecordOfServicesRenderedProps> =
   ];
 
   const [serviceRows, setServiceRows] = useState<ServiceRenderedRow[]>(initialRows);
+  
+  // 🔑 ADD THIS EFFECT: Sync internal state whenever parent `rows` prop updates (e.g. on form reset)
+  useEffect(() => {
+    if (rows && rows.length > 0) {
+      setServiceRows(rows);
+    } else {
+      setServiceRows([
+        {
+          id: `service-row-${Date.now()}`,
+          date: getLocalDateOnly(),
+          oralProphylaxis: false,
+          fluorideVarnishGel: false,
+          pitAndFissureSealant: '',
+          permanentFilling: '',
+          temporaryFilling: '',
+          extraction: '',
+          consultation: false,
+          remarks: '',
+        },
+      ]);
+    }
+  }, [rows]);
 
   const updateRows = (newRows: ServiceRenderedRow[]) => {
     setServiceRows(newRows);

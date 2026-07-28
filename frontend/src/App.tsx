@@ -284,7 +284,21 @@ useEffect(() => {
       },
     ]);
     setServicesData([]);
-	setRenderedServices([]); // 👈 ADD THIS LINE HERE
+	// 🎯 5. RESET RECORD OF SERVICES RENDERED (NEW FIELDS) TO 1 BLANK ROW
+	  setRenderedServices([
+		{
+		  id: `service-row-${Date.now()}`,
+		  date: getLocalDateOnly(),
+		  oralProphylaxis: false,
+		  fluorideVarnishGel: false,
+		  pitAndFissureSealant: '',
+		  permanentFilling: '',
+		  temporaryFilling: '',
+		  extraction: '',
+		  consultation: false,
+		  remarks: '',
+		},
+	  ]);
 
     try {
       await axios.post(`${API_BASE_URL}/api/v1/sync/clear`);
@@ -446,21 +460,93 @@ useEffect(() => {
   
   // Save full record including multi-visit dental chart entries
   const handleSaveDatabase = async () => {
+    // 1. Validate required fields (Surname, First Name, Middle Name)
+    const surnameClean = formData.surname.trim();
+    const firstNameClean = formData.firstName.trim();
+    const middleInitialClean = formData.middleInitial.trim();
+
+    if (!surnameClean || !firstNameClean || !middleInitialClean) {
+      alert('Please fill out all required fields: Surname, First Name, and Middle Name.');
+      return;
+    }
+
+    // 2. Check if all form fields, charts, and service records are completely empty
+    const hasVitals = Object.values({
+      bloodPressure: formData.bloodPressure,
+      pulseRate: formData.pulseRate,
+      temperature: formData.temperature,
+      height: formData.height,
+      weight: formData.weight,
+    }).some((val) => val.trim() !== '');
+
+    const hasMemberships = formData.nhtsPr || formData.fourPs || formData.indigenousPeople || formData.pwds;
+
+    const hasMedical = [
+      formData.allergiesChecked,
+      formData.hypertensionCva,
+      formData.diabetesMellitus,
+      formData.bloodDisorder,
+      formData.cardiovascularHeartDiseases,
+      formData.thyroidDisorders,
+      formData.hepatitisChecked,
+      formData.malignancyChecked,
+      formData.medicalHospitalizationChecked,
+      formData.surgicalChecked,
+      formData.bloodTransfusionChecked,
+      formData.tattooChecked,
+      formData.othersChecked,
+    ].some(Boolean);
+
+    const hasSocial = [
+      formData.sugarBeveragesChecked,
+      formData.useAlcoholChecked,
+      formData.useTobaccoChecked,
+      formData.betelNutChecked,
+    ].some(Boolean);
+
+    const hasDentalChart = visits.some((v) => Object.keys(v.chartData || {}).length > 0);
+    const hasServicesRendered = renderedServices.some(
+      (r) =>
+        r.oralProphylaxis ||
+        r.fluorideVarnishGel ||
+        r.pitAndFissureSealant.trim() !== '' ||
+        r.permanentFilling.trim() !== '' ||
+        r.temporaryFilling.trim() !== '' ||
+        r.extraction.trim() !== '' ||
+        r.consultation ||
+        r.remarks.trim() !== ''
+    );
+
+    const isFormEmpty =
+      !surnameClean &&
+      !firstNameClean &&
+      !middleInitialClean &&
+      !hasVitals &&
+      !hasMemberships &&
+      !hasMedical &&
+      !hasSocial &&
+      !hasDentalChart &&
+      !hasServicesRendered;
+
+    if (isFormEmpty) {
+      alert('Cannot save an empty record. Please fill out patient information.');
+      return;
+    }
+
     try {
-      // 1. Sanitize Oral Health Chart Visits payload
+      // 3. Sanitize Oral Health Chart Visits payload
       const sanitizedDentalVisits = visits.map((v) => {
         const rawLabel = v.visitLabel ? v.visitLabel.trim() : '';
         const rawDate = v.visitDate ? v.visitDate.trim() : '';
 
         return {
           ...v,
-          // If custom date was entered, save it. Otherwise fallback to current local PC date (MM/DD/YYYY)
           visitLabel: rawLabel !== '' && rawLabel !== 'Year I' ? rawLabel : getLocalDateOnly(),
           visitDate: rawDate !== '' ? rawDate : getLocalPCDateTime(),
         };
       });
 
-      // 2. Sanitize Services Monitoring payload if structured as an array of visits
+      // 4. Sanitize Services Monitoring payload
       const sanitizedServicesData = Array.isArray(servicesData)
         ? servicesData.map((s) => {
             const rawLabel = s.visitLabel ? s.visitLabel.trim() : '';
@@ -473,7 +559,7 @@ useEffect(() => {
           })
         : servicesData;
 
-      await axios.post(`${API_BASE_URL}/api/v1/forms/save`, {
+      const response = await axios.post(`${API_BASE_URL}/api/v1/forms/save`, {
         document_id: `doc_${Date.now()}`,
         confidence_score: confidence,
         requires_review: false,
@@ -542,20 +628,23 @@ useEffect(() => {
         },
         dental_chart: sanitizedDentalVisits,
         services_monitoring: sanitizedServicesData,
-		record_of_services_rendered: renderedServices, // 👈 ADD THIS FIELD TO YOUR DATABASE SAVE PAYLOAD
+        record_of_services_rendered: renderedServices,
       });
 
-      setSavedSuccess(true);
-      
-      // CLEAR ALL FORM FIELDS, IMAGE PREVIEW & MOBILE BUFFER INSTANTLY
-      await resetAllFormState();
-	  
+      if (response.status === 200 || response.status === 201) {
+        // 🎯 5. ALERT BOX
+        alert(`Patient record for "${formData.surname}, ${formData.firstName}" has been saved successfully!`);
+
+        // 🎯 6. CLEAR ALL FIELDS & FORM STATE
+        await resetAllFormState();
+      }
     } catch (error: any) {
       console.error('Error saving to database:', error.response?.data || error.message);
       alert(`Failed to save record to database: ${error.response?.data?.detail || 'Server error'}`);
     }
   };
-  
+
+
   return (
     <div className="min-h-screen bg-slate-900 text-slate-100 flex flex-col font-sans pb-12">
       <header className="border-b border-slate-800 bg-slate-950 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
@@ -663,18 +752,53 @@ useEffect(() => {
                     <User className="w-4 h-4"/> Personal Information
                   </div>
                   <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Surname</label>
-                      <input type="text" value={formData.surname} onChange={(e) => setFormData({ ...formData, surname: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400 uppercase mb-1">First Name</label>
-                      <input type="text" value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm" />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Middle Name</label>
-                      <input type="text" value={formData.middleInitial} onChange={(e) => setFormData({ ...formData, middleInitial: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2 text-slate-100 text-sm" />
-                    </div>
+					<div>
+						<label className="block text-xs font-medium text-slate-400 uppercase mb-1">
+						  Surname <span className="text-rose-500 font-bold">*</span>
+						</label>
+						<input
+						  type="text"
+						  required
+						  value={formData.surname}
+						  onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
+						  className={`w-full bg-slate-900 border rounded-lg p-2 text-slate-100 text-sm ${
+							!formData.surname.trim() ? 'border-slate-700 focus:border-rose-500' : 'border-slate-700'
+						  }`}
+						  placeholder="Required"
+						/>
+					  </div>
+
+					  <div>
+						<label className="block text-xs font-medium text-slate-400 uppercase mb-1">
+						  First Name <span className="text-rose-500 font-bold">*</span>
+						</label>
+						<input
+						  type="text"
+						  required
+						  value={formData.firstName}
+						  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+						  className={`w-full bg-slate-900 border rounded-lg p-2 text-slate-100 text-sm ${
+							!formData.firstName.trim() ? 'border-slate-700 focus:border-rose-500' : 'border-slate-700'
+						  }`}
+						  placeholder="Required"
+						/>
+					  </div>
+
+					  <div>
+						<label className="block text-xs font-medium text-slate-400 uppercase mb-1">
+						  Middle Name <span className="text-rose-500 font-bold">*</span>
+						</label>
+						<input
+						  type="text"
+						  required
+						  value={formData.middleInitial}
+						  onChange={(e) => setFormData({ ...formData, middleInitial: e.target.value })}
+						  className={`w-full bg-slate-900 border rounded-lg p-2 text-slate-100 text-sm ${
+							!formData.middleInitial.trim() ? 'border-slate-700 focus:border-rose-500' : 'border-slate-700'
+						  }`}
+						  placeholder="Required"
+						/>
+					  </div>
 
 					<div>
                       <label className="block text-xs font-medium text-slate-400 uppercase mb-1">Date of Birth</label>
