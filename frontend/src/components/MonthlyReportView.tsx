@@ -1,33 +1,184 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Printer, Download, RefreshCw, Calendar, Building2, MapPin } from 'lucide-react';
+import { BarChart3, Printer, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 
 const rawHost = window.location.hostname;
 const hostName = (rawHost === 'tauri.localhost' || !rawHost) ? '127.0.0.1' : rawHost;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${hostName}:8000`;
 
+// 1. Helper to strictly determine if age is 0-11 months (under 1 year old)
+const isInfantAge = (rawAge: any): boolean => {
+  if (rawAge === undefined || rawAge === null || rawAge === '') return false;
+
+  const ageStr = rawAge.toString().toLowerCase().trim();
+
+  // Match month keywords ("10 months", "10 mos", "11 mos", "0-11 mos", "6 months")
+  if (ageStr.includes('mo') || ageStr.includes('month')) {
+    const matches = ageStr.match(/\d+/g);
+    if (matches && matches.length > 0) {
+      const monthVal = parseInt(matches[0], 10);
+      return monthVal >= 0 && monthVal <= 11;
+    }
+  }
+
+  // Match numeric values (e.g. 0, "0", or decimals less than 1.0 year)
+  const numAge = parseFloat(ageStr);
+  if (!isNaN(numAge)) {
+    return numAge >= 0 && numAge < 1.0;
+  }
+
+  return false;
+};
+
+// 2. Helper to safely parse stringified JSON objects from SQLite DB
+const parseJsonObject = (data: any) => {
+  if (typeof data === 'string') {
+    try {
+      return JSON.parse(data);
+    } catch (e) {
+      return null;
+    }
+  }
+  return data;
+};
+
 export function MonthlyReportView() {
-  const [month, setMonth] = useState<string>('JANUARY');
-  const [quarter, setQuarter] = useState<string>('1ST');
+  const [month, setMonth] = useState<string>('JULY');
+  const [quarter, setQuarter] = useState<string>('3RD');
   const [year, setYear] = useState<string>('2026');
   const [facility, setFacility] = useState<string>('RURAL HEALTH UNIT II');
   const [municipality, setMunicipality] = useState<string>('SAN JOSE CITY / NUEVA ECIJA');
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [reportData, setReportData] = useState<any>({});
+  const [allRecords, setAllRecords] = useState<any[]>([]);
+  
+  // 🎯 State to store computed values and force re-render
+  const [counts, setCounts] = useState({
+    infantMale: 0,
+    infantFemale: 0,
+  });
 
+  // Fetch all saved patient records from EHR database
   const fetchReportData = async () => {
     setIsLoading(true);
-    try {
-      const res = await axios.get(`${API_BASE_URL}/api/v1/reports/monthly`, {
-        params: { month, quarter, year }
-      });
-      setReportData(res.data || {});
-    } catch (err) {
-      console.warn('Backend reporting endpoint pending or offline, rendering form template.', err);
-    } finally {
-      setIsLoading(false);
+    
+    // Candidate backend endpoints commonly used in FastAPI patient registries
+    const candidateEndpoints = [
+      `${API_BASE_URL}/api/v1/forms/records`,
+      `${API_BASE_URL}/api/v1/records`,
+      `${API_BASE_URL}/api/v1/patients`,
+      `${API_BASE_URL}/api/v1/forms/search`,
+      `${API_BASE_URL}/api/v1/forms/`
+    ];
+
+    let resData: any = null;
+
+    for (const url of candidateEndpoints) {
+      try {
+        const res = await axios.get(url);
+        if (res.status === 200 && res.data) {
+          console.log(`✅ Successfully connected to endpoint: ${url}`, res.data);
+          resData = res.data;
+          break; // Stop loop as soon as a working GET endpoint responds 200 OK
+        }
+      } catch (err) {
+        // Silently try next endpoint
+      }
     }
+
+    if (!resData) {
+      console.warn('❌ Could not locate GET endpoint for forms list. Please check backend main.py routes.');
+      setIsLoading(false);
+      setAllRecords([]);
+      return;
+    }
+
+    let recordsList: any[] = [];
+    if (Array.isArray(resData)) {
+      recordsList = resData;
+    } else if (resData && Array.isArray(resData.records)) {
+      recordsList = resData.records;
+    } else if (resData && Array.isArray(resData.forms)) {
+      recordsList = resData.forms;
+    } else if (resData && Array.isArray(resData.data)) {
+      recordsList = resData.data;
+    }
+
+    console.log('=== UNPACKED RECORDS COUNT ===', recordsList.length);
+
+    setAllRecords(recordsList);
+    calculateCounts(recordsList);
+    setIsLoading(false);
+  };
+  
+  // Aggregation logic for "NO. OF PERSON ATTENDED" -> Infant (0-11 mos)
+  const calculateCounts = (records: any[]) => {
+    let maleCount = 0;
+    let femaleCount = 0;
+
+    records.forEach((record: any, index: number) => {
+      // 1. Unpack Patient Information
+      const patientInfo = typeof record.patient_info === 'string'
+        ? parseJsonObject(record.patient_info) || {}
+        : (record.patient_info || {});
+
+      // 2. Extract Dental Chart Logs & Services Monitoring Logs
+      const dentalChartRaw = parseJsonObject(record.dental_chart);
+      const servicesMonRaw = parseJsonObject(record.services_monitoring);
+
+      let dentalVisitsCount = 0;
+      if (Array.isArray(dentalChartRaw)) {
+        dentalVisitsCount = dentalChartRaw.length;
+      } else if (dentalChartRaw && typeof dentalChartRaw === 'object') {
+        dentalVisitsCount = 1;
+      }
+
+      let servicesVisitsCount = 0;
+      if (Array.isArray(servicesMonRaw)) {
+        servicesVisitsCount = servicesMonRaw.length;
+      } else if (servicesMonRaw && typeof servicesMonRaw === 'object' && Object.keys(servicesMonRaw).length > 0) {
+        servicesVisitsCount = 1;
+      }
+
+      // FIRST-TIME ATTENDED FILTER:
+      // Accepts baseline intake records (0 or 1 visit entry; excludes multi-visit return logs like Visit 2, Visit 3)
+      const isFirstTimeAttended = dentalVisitsCount <= 1 && servicesVisitsCount <= 1;
+
+      // 3. Extract Age & Sex
+      const ageVal = patientInfo.age || record.age || '';
+      const sexVal = (patientInfo.sex || record.sex || '').toString().trim().toLowerCase();
+
+      const isInfant = isInfantAge(ageVal);
+      const isMale = sexVal === 'm' || sexVal === 'male';
+      const isFemale = sexVal === 'f' || sexVal === 'female';
+
+      // 🔍 DETAILED CONSOLE LOG PER RECORD
+      console.log(`Record #${index + 1} (${patientInfo.surname || 'No Surname'}):`, {
+        ageVal,
+        isInfant,
+        sexVal,
+        dentalVisitsCount,
+        servicesVisitsCount,
+        isFirstTimeAttended,
+        MATCHED: isFirstTimeAttended && isInfant && (isMale || isFemale)
+      });
+
+      if (!isFirstTimeAttended) return;
+      if (!isInfant) return;
+
+      if (isMale) {
+        maleCount++;
+      } else if (isFemale) {
+        femaleCount++;
+      }
+    });
+
+    console.log('=== FINAL COMPUTED INFANT COUNTS ===', { maleCount, femaleCount });
+
+    setCounts({
+      infantMale: maleCount,
+      infantFemale: femaleCount,
+    });
   };
 
   useEffect(() => {
@@ -37,7 +188,7 @@ export function MonthlyReportView() {
   const handlePrint = () => {
     window.print();
   };
-
+	
   return (
     <div className="space-y-6">
       {/* Top Action & Filter Toolbar */}
@@ -233,8 +384,14 @@ export function MonthlyReportView() {
                 <td className="p-1.5 border border-slate-800">NO. OF PERSON ATTENDED</td>
                 <td className="p-1 border border-slate-800 text-center">1</td>
                 <td className="p-1 border border-slate-800 text-center">15</td>
-                <td className="p-1 border border-slate-800 text-center">20</td>
-                <td className="p-1 border border-slate-800 text-center">50</td>
+				{/* 🎯 INFANT 0-11 MOS. (DYNAMIC COUNT) */}
+				  <td className="p-1 border border-slate-800 text-center font-bold text-blue-400">
+					{counts.infantMale}
+				  </td>
+				  <td className="p-1 border border-slate-800 text-center font-bold text-blue-400">
+					{counts.infantFemale}
+				  </td>
+  
                 <td className="p-1 border border-slate-800 text-center" colSpan={2}>12</td>
                 <td className="p-1 border border-slate-800 text-center" colSpan={2}>8</td>
                 <td className="p-1 border border-slate-800 text-center" colSpan={2}>15</td>
