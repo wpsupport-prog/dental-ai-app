@@ -255,8 +255,8 @@ export const OralHealthConditionSummary: React.FC<OralHealthConditionSummaryProp
             </div>
 
             <div className="flex justify-between items-center py-0.5 bg-slate-950/60 px-2 rounded border border-slate-800 mt-1">
-              <span className="font-bold text-blue-300">Total Teeth Count:</span>
-              <input type="text" readOnly value={counts.totalTeeth} className="w-12 bg-slate-900 border border-slate-700 rounded text-center text-blue-400 font-bold py-0.5" />
+              <span className="font-bold text-blue-300">Total df Teeth:</span>
+              <input type="text" readOnly value={counts.totalDF} className="w-12 bg-slate-900 border border-slate-700 rounded text-center text-blue-400 font-bold py-0.5" />
             </div>
           </div>
         </div>
