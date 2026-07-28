@@ -132,12 +132,6 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
     );
   };
 
-  const handleLabelChange = (newLabel: string) => {
-    setVisits((prevVisits) =>
-      prevVisits.map((v) => (v.id === activeVisitId ? { ...v, visitLabel: newLabel } : v))
-    );
-  };
-
   const handleEntryDateChange = (newEntryDate: string) => {
     setVisits((prevVisits) =>
       prevVisits.map((v) => (v.id === activeVisitId ? { ...v, entryDate: newEntryDate } : v))

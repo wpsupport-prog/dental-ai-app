@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+import RecordOfServicesRendered, { type ServiceRenderedRow } from './RecordOfServicesRendered';
+
 // Combine all icon imports into a single line:
 import { 
   Search, 
@@ -298,6 +300,16 @@ export const RecordsRetrievalTab: React.FC = () => {
 				displayServices = JSON.parse(displayServices);
 			  } catch {
 				displayServices = [];
+			  }
+			}
+			
+			// Safe parsing for Services Rendered rows
+			let displayServicesRendered = data.record_of_services_rendered;
+			if (typeof displayServicesRendered === 'string') {
+			  try {
+				displayServicesRendered = JSON.parse(displayServicesRendered);
+			  } catch {
+				displayServicesRendered = [];
 			  }
 			}
 
@@ -1190,6 +1202,13 @@ export const RecordsRetrievalTab: React.FC = () => {
                             isEditable={isEditing}
                           />
 						  
+						  {/* 🎯 NEW: Editable Record of Services Rendered */}
+							<RecordOfServicesRendered
+							  rows={displayServicesRendered || []}
+							  onChange={(updatedRows) => handleFieldChange('record_of_services_rendered', updatedRows)}
+							  isEditable={true}
+							/>
+						  
                         </>
                       ) : (
                         <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-4">
@@ -1222,6 +1241,12 @@ export const RecordsRetrievalTab: React.FC = () => {
                                 data={displayServices || {}}
                                 isEditable={false}
                               />
+							  
+							  {/* 🎯 NEW: Read-Only Record of Services Rendered */}
+								<RecordOfServicesRendered
+								  rows={displayServicesRendered || []}
+								  isEditable={false}
+								/>
 							  
                             </>
                           ) : (

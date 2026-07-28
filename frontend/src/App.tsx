@@ -27,6 +27,8 @@ import ServicesMonitoringChart, { type ServiceVisitRecord, type ServiceToothData
 import WebcamCaptureModal from './components/WebcamCaptureModal';
 import MobileCameraCapture from './components/MobileCameraCapture'; // <-- ADD THIS LINE
 
+import RecordOfServicesRendered, { type ServiceRenderedRow } from './components/RecordOfServicesRendered';
+
 export type ActiveTab = 'intake' | 'records';
 
 import { useEffect, useRef } from 'react';
@@ -152,7 +154,7 @@ const INITIAL_FORM_STATE = {
 export default function App() {
 	
 	// Inside your main App() component:
-const lastSyncedTimestamp = useRef<number>(0);
+	const lastSyncedTimestamp = useRef<number>(0);
 
 useEffect(() => {
   const syncInterval = setInterval(async () => {
@@ -282,6 +284,7 @@ useEffect(() => {
       },
     ]);
     setServicesData([]);
+	setRenderedServices([]); // 👈 ADD THIS LINE HERE
 
     try {
       await axios.post(`${API_BASE_URL}/api/v1/sync/clear`);
@@ -293,6 +296,8 @@ useEffect(() => {
   const [isUploading, setIsUploading] = useState(false);
   const [confidence, setConfidence] = useState<number>(0.98);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  
+  const [renderedServices, setRenderedServices] = useState<ServiceRenderedRow[]>([]);
   
   // State to track multi-visit oral health chart logs initialized with PC local date/time
   const [visits, setVisits] = useState<DentalVisitRecord[]>([
@@ -537,6 +542,7 @@ useEffect(() => {
         },
         dental_chart: sanitizedDentalVisits,
         services_monitoring: sanitizedServicesData,
+		record_of_services_rendered: renderedServices, // 👈 ADD THIS FIELD TO YOUR DATABASE SAVE PAYLOAD
       });
 
       setSavedSuccess(true);
@@ -954,6 +960,13 @@ useEffect(() => {
 				<ServicesMonitoringChart
 				  data={servicesData}
 				  onChange={setServicesData}
+				  isEditable={true}
+				/>
+				
+				{/* 👈 PLACE THE NEW COMPONENT HERE */}
+				<RecordOfServicesRendered
+				  rows={renderedServices}
+				  onChange={setRenderedServices}
 				  isEditable={true}
 				/>
 				
