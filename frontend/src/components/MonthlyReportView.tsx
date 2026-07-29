@@ -6,6 +6,32 @@ const rawHost = window.location.hostname;
 const hostName = (rawHost === 'tauri.localhost' || !rawHost) ? '127.0.0.1' : rawHost;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${hostName}:8000`;
 
+// Helper to parse age string into numeric years safely
+const parseAgeToYearsNum = (rawAge: any): number | null => {
+  if (rawAge === undefined || rawAge === null || rawAge === '') return null;
+
+  const ageStr = rawAge.toString().toLowerCase().trim();
+
+  // If age contains "mo" or "month" (e.g., "10 months" -> 0.83 years)
+  if (ageStr.includes('mo') || ageStr.includes('month')) {
+    const matches = ageStr.match(/\d+/g);
+    if (matches && matches.length > 0) {
+      const monthVal = parseInt(matches[0], 10);
+      return monthVal / 12;
+    }
+  }
+
+  // Parse direct numeric ages (e.g. "3", "3 yrs", "7 years old")
+  const matches = ageStr.match(/\d+/g);
+  if (matches && matches.length > 0) {
+    return parseInt(matches[0], 10);
+  }
+
+  const parsed = parseFloat(ageStr);
+  return isNaN(parsed) ? null : parsed;
+};
+
+
 // 1. Helper to strictly determine if age is 0-11 months (under 1 year old)
 const isInfantAge = (rawAge: any): boolean => {
   if (rawAge === undefined || rawAge === null || rawAge === '') return false;
@@ -25,6 +51,42 @@ const isInfantAge = (rawAge: any): boolean => {
   const numAge = parseFloat(ageStr);
   if (!isNaN(numAge)) {
     return numAge >= 0 && numAge < 1.0;
+  }
+
+  return false;
+};
+
+// Helper to check if a date string matches the selected Month and Year
+const matchesSelectedMonthAndYear = (rawDateStr: any, targetMonth: string, targetYear: string): boolean => {
+  if (!rawDateStr) return false;
+
+  const dateStr = rawDateStr.toString().toLowerCase().trim();
+  const selectedMonth = targetMonth.toLowerCase().trim(); // e.g., "july"
+  const selectedYear = targetYear.toString().trim();      // e.g., "2026"
+
+  // 1. Check if the string directly contains month name and year (e.g. "07/28/2026" or "July 28, 2026")
+  const monthsMap: Record<string, number> = {
+    january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
+    july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
+  };
+
+  const monthIndex = monthsMap[selectedMonth];
+  if (monthIndex === undefined) return false;
+
+  // Try parsing as standard JS Date
+  const parsedDate = new Date(dateStr);
+  if (!isNaN(parsedDate.getTime())) {
+    const isSameMonth = parsedDate.getMonth() === monthIndex;
+    const isSameYear = parsedDate.getFullYear().toString() === selectedYear;
+    if (isSameMonth && isSameYear) return true;
+  }
+
+  // Fallback for MM/DD/YYYY strings (e.g. "07/28/2026")
+  const mmddyyyyParts = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  if (mmddyyyyParts) {
+    const m = parseInt(mmddyyyyParts[1], 10) - 1;
+    const y = mmddyyyyParts[3];
+    return m === monthIndex && y === selectedYear;
   }
 
   return false;
@@ -52,10 +114,25 @@ export function MonthlyReportView() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [allRecords, setAllRecords] = useState<any[]>([]);
   
-  // 🎯 State to store computed values and force re-render
+  // State for dynamic indicators
   const [counts, setCounts] = useState({
     infantMale: 0,
     infantFemale: 0,
+    // School Age 1-4
+    age1Male: 0, age1Female: 0,
+    age2Male: 0, age2Female: 0,
+    age3Male: 0, age3Female: 0,
+    age4Male: 0, age4Female: 0,
+    school1to4Male: 0, school1to4Female: 0,
+    // School Age 5-9 Individual & Total Gender Counts
+    age5Male: 0, age5Female: 0,
+    age6Male: 0, age6Female: 0,
+    school5to6Male: 0, school5to6Female: 0,
+    age7Male: 0, age7Female: 0,
+    age8Male: 0, age8Female: 0,
+    age9Male: 0, age9Female: 0,
+    school5to9Male: 0, school5to9Female: 0,
+    school10to14: 0,
   });
 
   // Fetch all saved patient records from EHR database
@@ -90,6 +167,7 @@ export function MonthlyReportView() {
       console.warn('❌ Could not locate GET endpoint for forms list. Please check backend main.py routes.');
       setIsLoading(false);
       setAllRecords([]);
+	  calculateCounts([]); // Resets all UI indicators to 0
       return;
     }
 
@@ -111,26 +189,63 @@ export function MonthlyReportView() {
     setIsLoading(false);
   };
   
-  // Aggregation logic for "NO. OF PERSON ATTENDED" -> Infant (0-11 mos)
   const calculateCounts = (records: any[]) => {
-    let maleCount = 0;
-    let femaleCount = 0;
+    let infantMale = 0, infantFemale = 0;
 
-    records.forEach((record: any, index: number) => {
-      // 1. Unpack Patient Information
+    let age1Male = 0, age1Female = 0;
+    let age2Male = 0, age2Female = 0;
+    let age3Male = 0, age3Female = 0;
+    let age4Male = 0, age4Female = 0;
+
+    let age5Male = 0, age5Female = 0;
+    let age6Male = 0, age6Female = 0;
+    let age7Male = 0, age7Female = 0;
+    let age8Male = 0, age8Female = 0;
+    let age9Male = 0, age9Female = 0;
+
+    let school10to14 = 0;
+
+    // Reset to 0 if records array is empty
+    if (!Array.isArray(records) || records.length === 0) {
+      setCounts({
+        infantMale: 0, infantFemale: 0,
+        age1Male: 0, age1Female: 0,
+        age2Male: 0, age2Female: 0,
+        age3Male: 0, age3Female: 0,
+        age4Male: 0, age4Female: 0,
+        school1to4Male: 0, school1to4Female: 0,
+        age5Male: 0, age5Female: 0,
+        age6Male: 0, age6Female: 0,
+        school5to6Male: 0, school5to6Female: 0,
+        age7Male: 0, age7Female: 0,
+        age8Male: 0, age8Female: 0,
+        age9Male: 0, age9Female: 0,
+        school5to9Male: 0, school5to9Female: 0,
+        school10to14: 0,
+      });
+      return;
+    }
+
+    records.forEach((record: any) => {
+      // 1. Unpack Patient Information & Visit Logs
       const patientInfo = typeof record.patient_info === 'string'
         ? parseJsonObject(record.patient_info) || {}
         : (record.patient_info || {});
 
-      // 2. Extract Dental Chart Logs & Services Monitoring Logs
       const dentalChartRaw = parseJsonObject(record.dental_chart);
       const servicesMonRaw = parseJsonObject(record.services_monitoring);
 
       let dentalVisitsCount = 0;
+      let visit1Date = '';
+
       if (Array.isArray(dentalChartRaw)) {
         dentalVisitsCount = dentalChartRaw.length;
+        if (dentalChartRaw.length > 0) {
+          visit1Date = dentalChartRaw[0].visitDate || dentalChartRaw[0].date || '';
+        }
       } else if (dentalChartRaw && typeof dentalChartRaw === 'object') {
         dentalVisitsCount = 1;
+        visit1Date = dentalChartRaw.visitDate || dentalChartRaw.date || '';
       }
 
       let servicesVisitsCount = 0;
@@ -140,47 +255,87 @@ export function MonthlyReportView() {
         servicesVisitsCount = 1;
       }
 
-      // FIRST-TIME ATTENDED FILTER:
-      // Accepts baseline intake records (0 or 1 visit entry; excludes multi-visit return logs like Visit 2, Visit 3)
+      // 🎯 CONDITION 1: VISIT COUNT (Exactly 1 Visit Entry / Baseline Intake)
       const isFirstTimeAttended = dentalVisitsCount <= 1 && servicesVisitsCount <= 1;
+      if (!isFirstTimeAttended) return;
 
-      // 3. Extract Age & Sex
+      // 🎯 CONDITION 2: VISIT DATE MATCH (Matches Month & Year Dropdowns)[cite: 2]
+      const dateToVerify = visit1Date || record.created_at || record.createdAt || '';
+      const isDateMatching = matchesSelectedMonthAndYear(dateToVerify, month, year);
+      if (!isDateMatching) return;
+
+      // 🎯 CONDITION 3: AGE & GENDER PARSING[cite: 2]
       const ageVal = patientInfo.age || record.age || '';
       const sexVal = (patientInfo.sex || record.sex || '').toString().trim().toLowerCase();
-
-      const isInfant = isInfantAge(ageVal);
       const isMale = sexVal === 'm' || sexVal === 'male';
       const isFemale = sexVal === 'f' || sexVal === 'female';
+      const numAgeInYears = parseAgeToYearsNum(ageVal);
 
-      // 🔍 DETAILED CONSOLE LOG PER RECORD
-      console.log(`Record #${index + 1} (${patientInfo.surname || 'No Surname'}):`, {
-        ageVal,
-        isInfant,
-        sexVal,
-        dentalVisitsCount,
-        servicesVisitsCount,
-        isFirstTimeAttended,
-        MATCHED: isFirstTimeAttended && isInfant && (isMale || isFemale)
-      });
+      // --- INFANT 0-11 MOS ---[cite: 2]
+      if (isInfantAge(ageVal)) {
+        if (isMale) infantMale++;
+        else if (isFemale) infantFemale++;
+        return;
+      }
 
-      if (!isFirstTimeAttended) return;
-      if (!isInfant) return;
+      // --- SCHOOL AGE CHILDREN (1 to 9 Y/O) ---[cite: 2]
+      if (numAgeInYears !== null) {
+        const roundedAge = Math.floor(numAgeInYears);
 
-      if (isMale) {
-        maleCount++;
-      } else if (isFemale) {
-        femaleCount++;
+        if (roundedAge === 1) {
+          if (isMale) age1Male++; else if (isFemale) age1Female++;
+        } else if (roundedAge === 2) {
+          if (isMale) age2Male++; else if (isFemale) age2Female++;
+        } else if (roundedAge === 3) {
+          if (isMale) age3Male++; else if (isFemale) age3Female++;
+        } else if (roundedAge === 4) {
+          if (isMale) age4Male++; else if (isFemale) age4Female++;
+        } else if (roundedAge === 5) {
+          if (isMale) age5Male++; else if (isFemale) age5Female++;
+        } else if (roundedAge === 6) {
+          if (isMale) age6Male++; else if (isFemale) age6Female++;
+        } else if (roundedAge === 7) {
+          if (isMale) age7Male++; else if (isFemale) age7Female++;
+        } else if (roundedAge === 8) {
+          if (isMale) age8Male++; else if (isFemale) age8Female++;
+        } else if (roundedAge === 9) {
+          if (isMale) age9Male++; else if (isFemale) age9Female++;
+        } else if (roundedAge >= 10 && roundedAge <= 14) {
+          school10to14++;
+        }
       }
     });
 
-    console.log('=== FINAL COMPUTED INFANT COUNTS ===', { maleCount, femaleCount });
+    // Compute Totals directly from individual age counts[cite: 2]
+    const school1to4Male = age1Male + age2Male + age3Male + age4Male;
+    const school1to4Female = age1Female + age2Female + age3Female + age4Female;
 
+    const school5to6Male = age5Male + age6Male;
+    const school5to6Female = age5Female + age6Female;
+
+    const school5to9Male = age5Male + age6Male + age7Male + age8Male + age9Male;
+    const school5to9Female = age5Female + age6Female + age7Female + age8Female + age9Female;
+
+    // Update state object[cite: 2]
     setCounts({
-      infantMale: maleCount,
-      infantFemale: femaleCount,
+      infantMale, infantFemale,
+      age1Male, age1Female,
+      age2Male, age2Female,
+      age3Male, age3Female,
+      age4Male, age4Female,
+      school1to4Male, school1to4Female,
+      age5Male, age5Female,
+      age6Male, age6Female,
+      school5to6Male, school5to6Female,
+      age7Male, age7Female,
+      age8Male, age8Female,
+      age9Male, age9Female,
+      school5to9Male, school5to9Female,
+      school10to14,
     });
   };
-
+  
+  
   useEffect(() => {
     fetchReportData();
   }, [month, quarter, year]);
@@ -343,96 +498,226 @@ export function MonthlyReportView() {
 
         {/* Reporting Sheet Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse border border-slate-800 text-[11px] font-mono">
+          <table className="w-full text-left border-collapse border border-slate-800 text-[9px] font-mono whitespace-nowrap">
             <thead className="bg-slate-900 text-slate-300">
+              {/* ROW 1: TOP-LEVEL GROUPS */}
               <tr>
-                <th rowSpan={3} className="border border-slate-800 p-2 min-w-[220px]">INDICATORS</th>
-                <th colSpan={2} className="border border-slate-800 p-1 text-center bg-slate-950">Pregnant Women</th>
-                <th colSpan={2} className="border border-slate-800 p-1 text-center">Infant 0-11 mos.</th>
-                <th colSpan={8} className="border border-slate-800 p-1 text-center bg-slate-950">School Age Children</th>
-                <th colSpan={2} className="border border-slate-800 p-1 text-center">Adolescents 10-14 yrs</th>
-                <th colSpan={2} className="border border-slate-800 p-1 text-center bg-slate-950">Adolescents 15-19 yrs</th>
-                <th colSpan={2} className="border border-slate-800 p-1 text-center">Adults 20-59 yrs</th>
-                <th colSpan={2} className="border border-slate-800 p-1 text-center bg-slate-950">Older Persons 60+ yrs</th>
-                <th colSpan={2} className="border border-slate-800 p-1 text-center">TOTAL ALL AGES</th>
-                <th rowSpan={3} className="border border-slate-800 p-1 text-center font-bold bg-blue-950/40 text-blue-300">GRAND TOTAL</th>
-              </tr>
-              <tr className="text-[10px] text-center">
-                <th className="border border-slate-800 p-1">10-14</th>
-                <th className="border border-slate-800 p-1">15-49</th>
-                <th className="border border-slate-800 p-1">M</th>
-                <th className="border border-slate-800 p-1">F</th>
-                <th colSpan={2} className="border border-slate-800 p-1">TOTAL</th>
-                <th colSpan={2} className="border border-slate-800 p-1">1-4 yrs</th>
-                <th colSpan={2} className="border border-slate-800 p-1">5-9 yrs</th>
-                <th colSpan={2} className="border border-slate-800 p-1">10-14 yrs</th>
-                <th className="border border-slate-800 p-1">M</th>
-                <th className="border border-slate-800 p-1">F</th>
-                <th className="border border-slate-800 p-1">M</th>
-                <th className="border border-slate-800 p-1">F</th>
-                <th className="border border-slate-800 p-1">M</th>
-                <th className="border border-slate-800 p-1">F</th>
-                <th className="border border-slate-800 p-1">M</th>
-                <th className="border border-slate-800 p-1">F</th>
-                <th className="border border-slate-800 p-1">M</th>
-                <th className="border border-slate-800 p-1">F</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800 text-slate-300">
-              {/* SECTION 1: ATTENDANCE */}
-              <tr className="bg-slate-900/50 font-semibold">
-                <td className="p-1.5 border border-slate-800">NO. OF PERSON ATTENDED</td>
-                <td className="p-1 border border-slate-800 text-center">1</td>
-                <td className="p-1 border border-slate-800 text-center">15</td>
-				{/* 🎯 INFANT 0-11 MOS. (DYNAMIC COUNT) */}
-				  <td className="p-1 border border-slate-800 text-center font-bold text-blue-400">
-					{counts.infantMale}
-				  </td>
-				  <td className="p-1 border border-slate-800 text-center font-bold text-blue-400">
-					{counts.infantFemale}
-				  </td>
-  
-                <td className="p-1 border border-slate-800 text-center" colSpan={2}>12</td>
-                <td className="p-1 border border-slate-800 text-center" colSpan={2}>8</td>
-                <td className="p-1 border border-slate-800 text-center" colSpan={2}>15</td>
-                <td className="p-1 border border-slate-800 text-center" colSpan={2}>11</td>
-                <td className="p-1 border border-slate-800 text-center">11</td>
-                <td className="p-1 border border-slate-800 text-center">4</td>
-                <td className="p-1 border border-slate-800 text-center">8</td>
-                <td className="p-1 border border-slate-800 text-center">2</td>
-                <td className="p-1 border border-slate-800 text-center">32</td>
-                <td className="p-1 border border-slate-800 text-center">22</td>
-                <td className="p-1 border border-slate-800 text-center">9</td>
-                <td className="p-1 border border-slate-800 text-center">13</td>
-                <td className="p-1 border border-slate-800 text-center">141</td>
-                <td className="p-1 border border-slate-800 text-center">219</td>
-                <td className="p-1 border border-slate-800 text-center font-bold text-emerald-400">360</td>
-              </tr>
-              <tr className="bg-slate-900/50 font-semibold">
-                <td className="p-1.5 border border-slate-800">NO. OF PERSON EXAMINED</td>
-                <td className="p-1 border border-slate-800 text-center">1</td>
-                <td className="p-1 border border-slate-800 text-center">15</td>
-                <td className="p-1 border border-slate-800 text-center">20</td>
-                <td className="p-1 border border-slate-800 text-center">50</td>
-                <td className="p-1 border border-slate-800 text-center" colSpan={2}>12</td>
-                <td className="p-1 border border-slate-800 text-center" colSpan={2}>8</td>
-                <td className="p-1 border border-slate-800 text-center" colSpan={2}>15</td>
-                <td className="p-1 border border-slate-800 text-center" colSpan={2}>11</td>
-                <td className="p-1 border border-slate-800 text-center">11</td>
-                <td className="p-1 border border-slate-800 text-center">4</td>
-                <td className="p-1 border border-slate-800 text-center">8</td>
-                <td className="p-1 border border-slate-800 text-center">2</td>
-                <td className="p-1 border border-slate-800 text-center">32</td>
-                <td className="p-1 border border-slate-800 text-center">22</td>
-                <td className="p-1 border border-slate-800 text-center">9</td>
-                <td className="p-1 border border-slate-800 text-center">13</td>
-                <td className="p-1 border border-slate-800 text-center">131</td>
-                <td className="p-1 border border-slate-800 text-center">225</td>
-                <td className="p-1 border border-slate-800 text-center font-bold text-emerald-400">356</td>
+                <th rowSpan={3} className="border border-slate-800 p-2 min-w-[220px] align-middle text-center bg-slate-950 font-bold sticky left-0 z-10">
+                  INDICATORS
+                </th>
+                <th colSpan={3} className="border border-slate-800 p-1 text-center bg-slate-950 font-bold">
+                  Pregnant Women
+                </th>
+                <th colSpan={2} className="border border-slate-800 p-1 text-center font-bold">
+                  Infant (0-11 mos.)
+                </th>
+                <th colSpan={24} className="border border-slate-800 p-1 text-center bg-slate-950 font-bold">
+                  School Age Children
+                </th>
+                <th colSpan={2} className="border border-slate-800 p-1 text-center font-bold">
+                  Adolescents 10-14 Y/O except 12 Y/O
+                </th>
+                <th colSpan={2} className="border border-slate-800 p-1 text-center bg-slate-950 font-bold">
+                  Adolescents 12 Y/O
+                </th>
+                <th colSpan={2} className="border border-slate-800 p-1 text-center font-bold">
+                  Adolescents 15-19 Y/O except 12 Y/O
+                </th>
+                <th colSpan={2} className="border border-slate-800 p-1 text-center bg-slate-950 font-bold">
+                  Adults 20-59 Y/O
+                </th>
+                <th colSpan={2} className="border border-slate-800 p-1 text-center font-bold">
+                  Older Persons 60+ Y/O
+                </th>
+                <th colSpan={2} className="border border-slate-800 p-1 text-center bg-slate-950 font-bold">
+                  TOTAL ALL AGES
+                </th>
+                <th rowSpan={3} className="border border-slate-800 p-1 text-center font-bold bg-blue-950/60 text-blue-300 align-middle">
+                  GRAND TOTAL<br/>(M+F+Preg. Women)
+                </th>
               </tr>
 
-              {/* SECTION 2: MEDICAL HISTORY */}
-              <tr className="bg-slate-950 font-bold text-blue-400"><td colSpan={22} className="p-1 border border-slate-800">A. MEDICAL HISTORY</td></tr>
+              {/* ROW 2: AGE & SUB-GROUPS */}
+              <tr className="text-[8.5px] text-center font-semibold">
+                {/* Pregnant Women */}
+                <th className="border border-slate-800 p-0.5">10-14 Y/O</th>
+                <th className="border border-slate-800 p-0.5">15-19 Y/O</th>
+                <th className="border border-slate-800 p-0.5">20-49 Y/O</th>
+
+                {/* Infant 0-11 mos. */}
+                <th className="border border-slate-800 p-0.5">M</th>
+                <th className="border border-slate-800 p-0.5">F</th>
+
+                {/* School Age Children (1-4 Y/O + Total) */}
+                <th colSpan={2} className="border border-slate-800 p-0.5">1</th>
+                <th colSpan={2} className="border border-slate-800 p-0.5">2</th>
+                <th colSpan={2} className="border border-slate-800 p-0.5">3</th>
+                <th colSpan={2} className="border border-slate-800 p-0.5">4</th>
+                <th colSpan={2} className="border border-slate-800 p-0.5 bg-slate-800/60 font-bold text-blue-300">Total (1-4 Y/O)</th>
+
+                {/* School Age Children (5, 6, Total 5-6 Y/O, 7, 8, 9, Total 5-9 Y/O) */}
+                <th colSpan={2} className="border border-slate-800 p-0.5">5</th>
+                <th colSpan={2} className="border border-slate-800 p-0.5">6</th>
+                <th colSpan={2} className="border border-slate-800 p-0.5 bg-slate-800/60 font-bold text-blue-300">Total (5-6 Y/O)</th>
+                <th colSpan={2} className="border border-slate-800 p-0.5">7</th>
+                <th colSpan={2} className="border border-slate-800 p-0.5">8</th>
+                <th colSpan={2} className="border border-slate-800 p-0.5">9</th>
+                <th colSpan={2} className="border border-slate-800 p-0.5 bg-slate-800/60 font-bold text-blue-300">Total (5-9 Y/O)</th>
+
+                {/* Adolescents 10-14 except 12 */}
+                <th className="border border-slate-800 p-0.5">M</th>
+                <th className="border border-slate-800 p-0.5">F</th>
+
+                {/* Adolescents 12 Y/O */}
+                <th className="border border-slate-800 p-0.5">M</th>
+                <th className="border border-slate-800 p-0.5">F</th>
+
+                {/* Adolescents 15-19 except 12 */}
+                <th className="border border-slate-800 p-0.5">M</th>
+                <th className="border border-slate-800 p-0.5">F</th>
+
+                {/* Adults 20-59 */}
+                <th className="border border-slate-800 p-0.5">M</th>
+                <th className="border border-slate-800 p-0.5">F</th>
+
+                {/* Older Persons 60+ */}
+                <th className="border border-slate-800 p-0.5">M</th>
+                <th className="border border-slate-800 p-0.5">F</th>
+
+                {/* TOTAL ALL AGES */}
+                <th className="border border-slate-800 p-0.5">M</th>
+                <th className="border border-slate-800 p-0.5">F</th>
+              </tr>
+
+              {/* ROW 3: M/F GENDER BREAKDOWN */}
+              <tr className="text-[8px] text-center font-bold text-slate-400">
+                {/* School Age Children 1-4 M/F */}
+                <th className="border border-slate-800 px-1">&nbsp;</th><th className="border border-slate-800 px-1">&nbsp;</th>
+                <th className="border border-slate-800 px-1">&nbsp;</th><th className="border border-slate-800 px-1">&nbsp;</th>
+                <th className="border border-slate-800 px-1">&nbsp;</th><th className="border border-slate-800 px-1">M</th>
+                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th>
+
+                {/* School Age Children 5, 6, Total 5-6, 7, 8, 9, Total 5-9 */}
+                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
+                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th>
+                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
+                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
+                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th>
+				<th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th>
+				<th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th>
+				<th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-slate-800 text-slate-300 text-center">
+              {/* ------------------------------------------------------------- */}
+              {/* SECTION 1: ATTENDANCE & EXAMINATION */}
+              {/* ------------------------------------------------------------- */}
+              <tr className="bg-slate-900/60 font-semibold">
+                <td className="p-1 border border-slate-800 text-left font-bold text-slate-100 sticky left-0 bg-slate-900 z-10">NO. OF PERSON ATTENDED</td>
+                
+                {/* Pregnant Women */}
+                <td className="p-1 border border-slate-800">0</td>
+                <td className="p-1 border border-slate-800">0</td>
+                <td className="p-1 border border-slate-800">0</td>
+                
+                {/* DYNAMIC INFANT COUNTS (0-11 mos: M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-blue-950/30">{counts.infantMale || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-blue-950/30">{counts.infantFemale || 0}</td>
+
+                {/* School Age 1-4 (Ages 1, 2, 3, 4: M, F) */}
+                {/* 🎯 SCHOOL AGE 1 (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age1Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age1Female || 0}</td>
+
+                {/* 🎯 SCHOOL AGE 2 (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age2Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age2Female || 0}</td>
+
+                {/* 🎯 SCHOOL AGE 3 (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age3Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age3Female || 0}</td>
+
+                {/* 🎯 SCHOOL AGE 4 (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age4Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age4Female || 0}</td>
+
+                {/* 🎯 TOTAL 1-4 Y/O (M, F SUM) */}
+                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school1to4Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school1to4Female || 0}</td>
+                
+                {/* 🎯 SCHOOL AGE 5 (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age5Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age5Female || 0}</td>
+
+                {/* 🎯 SCHOOL AGE 6 (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age6Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age6Female || 0}</td>
+
+                {/* 🎯 TOTAL 5-6 Y/O (M, F SUM) */}
+                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school5to6Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school5to6Female || 0}</td>
+
+                {/* 🎯 SCHOOL AGE 7 (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age7Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age7Female || 0}</td>
+
+                {/* 🎯 SCHOOL AGE 8 (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age8Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age8Female || 0}</td>
+
+                {/* 🎯 SCHOOL AGE 9 (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age9Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age9Female || 0}</td>
+
+                {/* 🎯 TOTAL 5-9 Y/O (M, F SUM) */}
+                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school5to9Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school5to9Female || 0}</td>
+
+                {/* Adolescents 10-14 except 12 (M, F) */}
+                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                
+                {/* Adolescents 12 Y/O (M, F) */}
+                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                
+                {/* Adolescents 15-19 except 12 (M, F) */}
+                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                
+                {/* Adults 20-59 (M, F) */}
+                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                
+                {/* Older Persons 60+ (M, F) */}
+                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                
+                {/* TOTAL ALL AGES (M, F) */}
+                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                
+                {/* GRAND TOTAL */}
+                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/40">0</td>
+              </tr>
+
+              <tr className="bg-slate-900/60 font-semibold">
+                <td className="p-1 border border-slate-800 text-left font-bold text-slate-100 sticky left-0 bg-slate-900 z-10">NO. OF PERSON EXAMINED</td>
+                {Array.from({ length: 42 }).map((_, i) => (
+                  <td key={`exam-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
+                ))}
+                
+              </tr>
+
+              {/* ------------------------------------------------------------- */}
+              {/* SECTION A: MEDICAL HISTORY */}
+              {/* ------------------------------------------------------------- */}
+              <tr className="bg-slate-950 font-bold text-blue-400 text-left">
+                <td colSpan={44} className="p-1 border border-slate-800 uppercase">A. MEDICAL HISTORY</td>
+              </tr>
               {[
                 "1. Total No. with Allergies",
                 "2. Total No. with Hypertension / CVA",
@@ -443,36 +728,45 @@ export function MonthlyReportView() {
                 "7. Total No. with Hepatitis",
                 "8. Total No. with Malignancy",
                 "9. Total No. with History of Previous Hospitalization",
-                "10. Total No. with Blood Transfusion"
+                "10. Total No. with Blood Transfusion",
+                "11. Total No. with Tattoo"
               ].map((item, idx) => (
-                <tr key={idx} className="hover:bg-slate-900/40">
-                  <td className="p-1 border border-slate-800">{item}</td>
-                  {Array.from({ length: 20 }).map((_, i) => (
-                    <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
+                <tr key={`med-${idx}`} className="hover:bg-slate-900/40">
+                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
+                  {Array.from({ length: 42 }).map((_, i) => (
+                    <td key={`med-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
                   ))}
-                  <td className="p-1 border border-slate-800 text-center font-bold text-blue-400">0</td>
+                 
                 </tr>
               ))}
 
-              {/* SECTION 3: DIETARY / SOCIAL HISTORY */}
-              <tr className="bg-slate-950 font-bold text-blue-400"><td colSpan={22} className="p-1 border border-slate-800">B. DIETARY / SOCIAL HISTORY STATUS</td></tr>
+              {/* ------------------------------------------------------------- */}
+              {/* SECTION B: DIETARY / SOCIAL HISTORY STATUS */}
+              {/* ------------------------------------------------------------- */}
+              <tr className="bg-slate-950 font-bold text-blue-400 text-left">
+                <td colSpan={44} className="p-1 border border-slate-800 uppercase">B. DIETARY / SOCIAL HISTORY STATUS</td>
+              </tr>
               {[
                 "1. Total No. of Sugar Sweetened Beverage / Food Drinker / Eater",
                 "2. Total No. of Alcohol Drinker",
                 "3. Total No. of Tobacco User",
                 "4. Total No. of Betel Nut Chewer"
               ].map((item, idx) => (
-                <tr key={idx} className="hover:bg-slate-900/40">
-                  <td className="p-1 border border-slate-800">{item}</td>
-                  {Array.from({ length: 20 }).map((_, i) => (
-                    <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
+                <tr key={`diet-${idx}`} className="hover:bg-slate-900/40">
+                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
+                  {Array.from({ length: 42 }).map((_, i) => (
+                    <td key={`diet-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
                   ))}
-                  <td className="p-1 border border-slate-800 text-center font-bold text-blue-400">0</td>
+                  
                 </tr>
               ))}
 
-              {/* SECTION 4: ORAL HEALTH STATUS */}
-              <tr className="bg-slate-950 font-bold text-blue-400"><td colSpan={22} className="p-1 border border-slate-800">C. ORAL HEALTH STATUS</td></tr>
+              {/* ------------------------------------------------------------- */}
+              {/* SECTION C: ORAL HEALTH STATUS */}
+              {/* ------------------------------------------------------------- */}
+              <tr className="bg-slate-950 font-bold text-blue-400 text-left">
+                <td colSpan={44} className="p-1 border border-slate-800 uppercase">C. ORAL HEALTH STATUS</td>
+              </tr>
               {[
                 "1. Total No. with Dental Caries",
                 "2. Total No. with Gingivitis",
@@ -480,26 +774,28 @@ export function MonthlyReportView() {
                 "4. Total No. with Oral Debris",
                 "5. Total No. with Calculus",
                 "6. Total No. with Dento-Facial Anomalies (cleft lip/palate, etc.)",
-                "a. Total (df) T",
-                "a. Total Decayed (d)",
-                "b. Total Filled (f)",
-                "a. Total (DMF) T",
-                "a. Total Decayed (D)",
-                "b. Total Missing (M)",
-                "c. Total Filled (F)"
+                "7. Total (df) T",
+                "  a. Total decayed (d)",
+                "  b. Total filled (f)",
+                "8. Total (DMF) T",
+                "  a. Total Decayed (D)",
+                "  b. Total Missing (M)",
+                "  c. Total Filled (F)"
               ].map((item, idx) => (
-                <tr key={idx} className={`hover:bg-slate-900/40 ${item.includes('Total') ? 'font-semibold bg-slate-900/30' : ''}`}>
-                  <td className="p-1 border border-slate-800">{item}</td>
-                  {Array.from({ length: 20 }).map((_, i) => (
-                    <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
+                <tr key={`oral-${idx}`} className={`hover:bg-slate-900/40 ${item.includes('Total (') ? 'font-semibold bg-slate-900/30' : ''}`}>
+                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
+                  {Array.from({ length: 42 }).map((_, i) => (
+                    <td key={`oral-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
                   ))}
-                  <td className="p-1 border border-slate-800 text-center font-bold text-blue-400">0</td>
+                  
                 </tr>
               ))}
-			  
+
+              {/* ------------------------------------------------------------- */}
               {/* SECTION D: SERVICES RENDERED */}
-              <tr className="bg-slate-950 font-bold text-blue-400">
-                <td colSpan={22} className="p-1 border border-slate-800">D. SERVICES RENDERED</td>
+              {/* ------------------------------------------------------------- */}
+              <tr className="bg-slate-950 font-bold text-blue-400 text-left">
+                <td colSpan={44} className="p-1 border border-slate-800 uppercase">D. SERVICES RENDERED</td>
               </tr>
               {[
                 "1. No. Given OP / Scaling",
@@ -514,95 +810,55 @@ export function MonthlyReportView() {
                 "10. No. of Patient with Oral Abscess Treated",
                 "11. No. Given Other Services",
                 "12. No. of Referred",
-                "13. No. of Given Counselling / Education on Tobacco, Oral Health",
+                "13. No. Given Counselling / Education on Tobacco, Oral Health",
                 "14. No. Under 5 Children Completed Tooth Brushing Drill"
               ].map((item, idx) => (
-                <tr key={`sec-d-${idx}`} className="hover:bg-slate-900/40">
-                  <td className="p-1 border border-slate-800">{item}</td>
-                  {Array.from({ length: 20 }).map((_, i) => (
-                    <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
+                <tr key={`serv-${idx}`} className="hover:bg-slate-900/40">
+                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
+                  {Array.from({ length: 42 }).map((_, i) => (
+                    <td key={`serv-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
                   ))}
-                  <td className="p-1 border border-slate-800 text-center font-bold text-blue-400">0</td>
+                  
                 </tr>
               ))}
 
+              {/* ------------------------------------------------------------- */}
               {/* SECTION E: OFC STATUS */}
-              <tr className="bg-slate-950 font-bold text-blue-400">
-                <td colSpan={22} className="p-1 border border-slate-800">E. ORALLY FIT CHILD (OFC) STATUS</td>
+              {/* ------------------------------------------------------------- */}
+              <tr className="bg-slate-950 font-bold text-blue-400 text-left">
+                <td colSpan={44} className="p-1 border border-slate-800 uppercase">E. ORALLY FIT CHILD (OFC) STATUS</td>
               </tr>
-              <tr className="hover:bg-slate-900/40 font-semibold">
-                <td className="p-1 border border-slate-800">1. OFC Upon Oral Examination</td>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
-                ))}
-                <td className="p-1 border border-slate-800 text-center font-bold text-emerald-400">0</td>
-              </tr>
-              <tr className="hover:bg-slate-900/40 text-slate-400">
-                <td className="p-1 border border-slate-800 pl-4">NHTS</td>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
-                ))}
-                <td className="p-1 border border-slate-800 text-center font-bold">0</td>
-              </tr>
-              <tr className="hover:bg-slate-900/40 text-slate-400">
-                <td className="p-1 border border-slate-800 pl-4">4PS</td>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
-                ))}
-                <td className="p-1 border border-slate-800 text-center font-bold">0</td>
-              </tr>
+              {["1. OFC Upon Oral Examination", "  NHTS", "  4PS", "2. OFC Upon Oral Rehabilitation", "  NHTS", "  4PS"].map((item, idx) => (
+                <tr key={`ofc-${idx}`} className={`hover:bg-slate-900/40 ${item.startsWith('1.') || item.startsWith('2.') ? 'font-semibold' : 'text-slate-400'}`}>
+                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
+                  {Array.from({ length: 42 }).map((_, i) => (
+                    <td key={`ofc-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
+                  ))}
+                  
+                </tr>
+              ))}
 
-              <tr className="hover:bg-slate-900/40 font-semibold">
-                <td className="p-1 border border-slate-800">2. OFC Upon Oral Rehabilitation</td>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
-                ))}
-                <td className="p-1 border border-slate-800 text-center font-bold text-emerald-400">0</td>
-              </tr>
-              <tr className="hover:bg-slate-900/40 text-slate-400">
-                <td className="p-1 border border-slate-800 pl-4">NHTS</td>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
-                ))}
-                <td className="p-1 border border-slate-800 text-center font-bold">0</td>
-              </tr>
-              <tr className="hover:bg-slate-900/40 text-slate-400">
-                <td className="p-1 border border-slate-800 pl-4">4PS</td>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
-                ))}
-                <td className="p-1 border border-slate-800 text-center font-bold">0</td>
-              </tr>
-
+              {/* ------------------------------------------------------------- */}
               {/* SECTION F: PATIENTS EXAMINED GIVEN BOHC */}
-              <tr className="bg-slate-950 font-bold text-blue-400">
-                <td colSpan={22} className="p-1 border border-slate-800">F. NO. OF PATIENTS EXAMINED GIVEN BOHC</td>
+              {/* ------------------------------------------------------------- */}
+              <tr className="bg-slate-950 font-bold text-blue-400 text-left">
+                <td colSpan={44} className="p-1 border border-slate-800 uppercase">F. NO. OF PATIENTS EXAMINED GIVEN BOHC</td>
               </tr>
-              <tr className="hover:bg-slate-900/40 font-semibold">
-                <td className="p-1 border border-slate-800">TOTAL PATIENTS GIVEN BOHC</td>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
-                ))}
-                <td className="p-1 border border-slate-800 text-center font-bold text-emerald-400">0</td>
-              </tr>
-              <tr className="hover:bg-slate-900/40 text-slate-400">
-                <td className="p-1 border border-slate-800 pl-4">NHTS</td>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
-                ))}
-                <td className="p-1 border border-slate-800 text-center font-bold">0</td>
-              </tr>
-              <tr className="hover:bg-slate-900/40 text-slate-400">
-                <td className="p-1 border border-slate-800 pl-4">4PS</td>
-                {Array.from({ length: 20 }).map((_, i) => (
-                  <td key={i} className="p-1 border border-slate-800 text-center font-mono">0</td>
-                ))}
-                <td className="p-1 border border-slate-800 text-center font-bold">0</td>
-              </tr>
-			  
+              {["TOTAL PATIENTS GIVEN BOHC", "  NHTS", "  4PS"].map((item, idx) => (
+                <tr key={`bohc-${idx}`} className={`hover:bg-slate-900/40 ${idx === 0 ? 'font-semibold' : 'text-slate-400'}`}>
+                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
+                  {Array.from({ length: 42 }).map((_, i) => (
+                    <td key={`bohc-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
+                  ))}
+                  
+                </tr>
+              ))}
+
             </tbody>
           </table>
         </div>
+		
+		
       </div>
     </div>
   );
