@@ -2,107 +2,82 @@ import React, { useState, useEffect } from 'react';
 import { BarChart3, Printer, RefreshCw } from 'lucide-react';
 import axios from 'axios';
 
+import { createEmptyMatrix } from '../utils/reportTypes';
+import type { DemographicMatrix } from '../utils/reportTypes';
+
+import {
+  parseAgeToYearsNum,
+  isInfantAge,
+  matchesSelectedMonthAndYear,
+  parseJsonObject,
+  incrementMatrix,
+  finalizeMatrixTotals
+} from '../utils/reportHelpers';
+
 const rawHost = window.location.hostname;
 const hostName = (rawHost === 'tauri.localhost' || !rawHost) ? '127.0.0.1' : rawHost;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${hostName}:8000`;
 
-// Helper to parse age string into numeric years safely
-const parseAgeToYearsNum = (rawAge: any): number | null => {
-  if (rawAge === undefined || rawAge === null || rawAge === '') return null;
+// --- REUSABLE MATRIX ROW COMPONENT ---
+const MatrixRow = ({ label, m }: { label: string; m: DemographicMatrix }) => (
+  <tr className="hover:bg-slate-900/40">
+    <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{label}</td>
+    
+    {/* Pregnant Women */}
+    <td className="p-1 border border-slate-800">{m.preg10to14 || 0}</td>
+    <td className="p-1 border border-slate-800">{m.preg15to19 || 0}</td>
+    <td className="p-1 border border-slate-800">{m.preg20to49 || 0}</td>
 
-  const ageStr = rawAge.toString().toLowerCase().trim();
+    {/* Infant 0-11 mos */}
+    <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-blue-950/30">{m.infantMale || 0}</td>
+    <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-blue-950/30">{m.infantFemale || 0}</td>
 
-  // If age contains "mo" or "month" (e.g., "10 months" -> 0.83 years)
-  if (ageStr.includes('mo') || ageStr.includes('month')) {
-    const matches = ageStr.match(/\d+/g);
-    if (matches && matches.length > 0) {
-      const monthVal = parseInt(matches[0], 10);
-      return monthVal / 12;
-    }
-  }
+    {/* School Age 1-4 */}
+    <td className="p-1 border border-slate-800">{m.age1Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age1Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age2Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age2Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age3Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age3Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age4Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age4Female || 0}</td>
+    <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{m.school1to4Male || 0}</td>
+    <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{m.school1to4Female || 0}</td>
 
-  // Parse direct numeric ages (e.g. "3", "3 yrs", "7 years old")
-  const matches = ageStr.match(/\d+/g);
-  if (matches && matches.length > 0) {
-    return parseInt(matches[0], 10);
-  }
+    {/* School Age 5-9 */}
+    <td className="p-1 border border-slate-800">{m.age5Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age5Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age6Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age6Female || 0}</td>
+    <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{m.school5to6Male || 0}</td>
+    <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{m.school5to6Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age7Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age7Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age8Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age8Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age9Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.age9Female || 0}</td>
+    <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{m.school5to9Male || 0}</td>
+    <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{m.school5to9Female || 0}</td>
 
-  const parsed = parseFloat(ageStr);
-  return isNaN(parsed) ? null : parsed;
-};
+    {/* Adolescents & Adults */}
+    <td className="p-1 border border-slate-800">{m.adolescentExcept12Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.adolescentExcept12Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.adolescent12Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.adolescent12Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.adolescent15to19Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.adolescent15to19Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.adult20to59Male || 0}</td>
+    <td className="p-1 border border-slate-800">{m.adult20to59Female || 0}</td>
+    <td className="p-1 border border-slate-800">{m.older60PlusMale || 0}</td>
+    <td className="p-1 border border-slate-800">{m.older60PlusFemale || 0}</td>
 
-
-// 1. Helper to strictly determine if age is 0-11 months (under 1 year old)
-const isInfantAge = (rawAge: any): boolean => {
-  if (rawAge === undefined || rawAge === null || rawAge === '') return false;
-
-  const ageStr = rawAge.toString().toLowerCase().trim();
-
-  // Match month keywords ("10 months", "10 mos", "11 mos", "0-11 mos", "6 months")
-  if (ageStr.includes('mo') || ageStr.includes('month')) {
-    const matches = ageStr.match(/\d+/g);
-    if (matches && matches.length > 0) {
-      const monthVal = parseInt(matches[0], 10);
-      return monthVal >= 0 && monthVal <= 11;
-    }
-  }
-
-  // Match numeric values (e.g. 0, "0", or decimals less than 1.0 year)
-  const numAge = parseFloat(ageStr);
-  if (!isNaN(numAge)) {
-    return numAge >= 0 && numAge < 1.0;
-  }
-
-  return false;
-};
-
-// Helper to check if a date string matches the selected Month and Year
-const matchesSelectedMonthAndYear = (rawDateStr: any, targetMonth: string, targetYear: string): boolean => {
-  if (!rawDateStr) return false;
-
-  const dateStr = rawDateStr.toString().toLowerCase().trim();
-  const selectedMonth = targetMonth.toLowerCase().trim(); // e.g., "july"
-  const selectedYear = targetYear.toString().trim();      // e.g., "2026"
-
-  // 1. Check if the string directly contains month name and year (e.g. "07/28/2026" or "July 28, 2026")
-  const monthsMap: Record<string, number> = {
-    january: 0, february: 1, march: 2, april: 3, may: 4, june: 5,
-    july: 6, august: 7, september: 8, october: 9, november: 10, december: 11
-  };
-
-  const monthIndex = monthsMap[selectedMonth];
-  if (monthIndex === undefined) return false;
-
-  // Try parsing as standard JS Date
-  const parsedDate = new Date(dateStr);
-  if (!isNaN(parsedDate.getTime())) {
-    const isSameMonth = parsedDate.getMonth() === monthIndex;
-    const isSameYear = parsedDate.getFullYear().toString() === selectedYear;
-    if (isSameMonth && isSameYear) return true;
-  }
-
-  // Fallback for MM/DD/YYYY strings (e.g. "07/28/2026")
-  const mmddyyyyParts = dateStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  if (mmddyyyyParts) {
-    const m = parseInt(mmddyyyyParts[1], 10) - 1;
-    const y = mmddyyyyParts[3];
-    return m === monthIndex && y === selectedYear;
-  }
-
-  return false;
-};
-
-// 2. Helper to safely parse stringified JSON objects from SQLite DB
-const parseJsonObject = (data: any) => {
-  if (typeof data === 'string') {
-    try {
-      return JSON.parse(data);
-    } catch (e) {
-      return null;
-    }
-  }
-  return data;
-};
+    {/* Totals */}
+    <td className="p-1 border border-slate-800 font-bold text-blue-300 bg-slate-900">{m.totalAllAgesMale || 0}</td>
+    <td className="p-1 border border-slate-800 font-bold text-blue-300 bg-slate-900">{m.totalAllAgesFemale || 0}</td>
+    <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/40">{m.grandTotal || 0}</td>
+  </tr>
+);
 
 export function MonthlyReportView() {
   const [month, setMonth] = useState<string>('JULY');
@@ -114,44 +89,38 @@ export function MonthlyReportView() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [allRecords, setAllRecords] = useState<any[]>([]);
   
-  // State for dynamic indicators
-  const [counts, setCounts] = useState({
-    preg10to14: 0,
-    preg15to19: 0,
-    preg20to49: 0,
-    pregnantTotal: 0,
-    infantMale: 0, infantFemale: 0,
-    // School Age 1-4
-    age1Male: 0, age1Female: 0,
-    age2Male: 0, age2Female: 0,
-    age3Male: 0, age3Female: 0,
-    age4Male: 0, age4Female: 0,
-    school1to4Male: 0, school1to4Female: 0,
-    // School Age 5-9
-    age5Male: 0, age5Female: 0,
-    age6Male: 0, age6Female: 0,
-    school5to6Male: 0, school5to6Female: 0,
-    age7Male: 0, age7Female: 0,
-    age8Male: 0, age8Female: 0,
-    age9Male: 0, age9Female: 0,
-    school5to9Male: 0, school5to9Female: 0,
-    // Adolescents & Adults
-    adolescentExcept12Male: 0, adolescentExcept12Female: 0,
-    adolescent12Male: 0, adolescent12Female: 0,
-    adolescent15to19Male: 0, adolescent15to19Female: 0,
-    adult20to59Male: 0, adult20to59Female: 0,
-    older60PlusMale: 0, older60PlusFemale: 0,
-    // Totals
-    totalAllAgesMale: 0,
-    totalAllAgesFemale: 0,
-    grandTotal: 0,
+  // Dynamic indicators (NO. OF PERSON ATTENDED)
+  const [counts, setCounts] = useState(createEmptyMatrix());
+  
+  // NO. OF PERSON EXAMINED indicators
+  const [examinedCounts, setExaminedCounts] = useState(createEmptyMatrix());
+  
+  // SECTION A: MEDICAL HISTORY INDICATORS
+  const [medHistory, setMedHistory] = useState({
+    allergies: createEmptyMatrix(),
+    hypertension: createEmptyMatrix(),
+    diabetes: createEmptyMatrix(),
+    bloodDisorder: createEmptyMatrix(),
+    cardiovascular: createEmptyMatrix(),
+    thyroid: createEmptyMatrix(),
+    hepatitis: createEmptyMatrix(),
+    malignancy: createEmptyMatrix(),
+    hospitalization: createEmptyMatrix(),
+    transfusion: createEmptyMatrix(),
+    tattoo: createEmptyMatrix(),
   });
 
-  // Fetch all saved patient records from EHR database
+  // SECTION B: DIETARY / SOCIAL HISTORY INDICATORS
+  const [dietaryHistory, setDietaryHistory] = useState({
+    sweetenedBeverage: createEmptyMatrix(),
+    alcohol: createEmptyMatrix(),
+    tobacco: createEmptyMatrix(),
+    betelNut: createEmptyMatrix(),
+  });
+
   const fetchReportData = async () => {
     setIsLoading(true);
     
-    // Candidate backend endpoints commonly used in FastAPI patient registries
     const candidateEndpoints = [
       `${API_BASE_URL}/api/v1/forms/records`,
       `${API_BASE_URL}/api/v1/records`,
@@ -168,7 +137,7 @@ export function MonthlyReportView() {
         if (res.status === 200 && res.data) {
           console.log(`✅ Successfully connected to endpoint: ${url}`, res.data);
           resData = res.data;
-          break; // Stop loop as soon as a working GET endpoint responds 200 OK
+          break;
         }
       } catch (err) {
         // Silently try next endpoint
@@ -176,10 +145,10 @@ export function MonthlyReportView() {
     }
 
     if (!resData) {
-      console.warn('❌ Could not locate GET endpoint for forms list. Please check backend main.py routes.');
+      console.warn('❌ Could not locate GET endpoint for forms list.');
       setIsLoading(false);
       setAllRecords([]);
-	  calculateCounts([]); // Resets all UI indicators to 0
+      calculateCounts([]);
       return;
     }
 
@@ -194,243 +163,220 @@ export function MonthlyReportView() {
       recordsList = resData.data;
     }
 
-    console.log('=== UNPACKED RECORDS COUNT ===', recordsList.length);
-
     setAllRecords(recordsList);
     calculateCounts(recordsList);
     setIsLoading(false);
   };
   
   const calculateCounts = (records: any[]) => {
-    let preg10to14 = 0;
-    let preg15to19 = 0;
-    let preg20to49 = 0;
+    const attended = createEmptyMatrix();
+    const examined = createEmptyMatrix();
 
-    let infantMale = 0, infantFemale = 0;
+    const med = {
+      allergies: createEmptyMatrix(),
+      hypertension: createEmptyMatrix(),
+      diabetes: createEmptyMatrix(),
+      bloodDisorder: createEmptyMatrix(),
+      cardiovascular: createEmptyMatrix(),
+      thyroid: createEmptyMatrix(),
+      hepatitis: createEmptyMatrix(),
+      malignancy: createEmptyMatrix(),
+      hospitalization: createEmptyMatrix(),
+      transfusion: createEmptyMatrix(),
+      tattoo: createEmptyMatrix(),
+    };
 
-    let age1Male = 0, age1Female = 0;
-    let age2Male = 0, age2Female = 0;
-    let age3Male = 0, age3Female = 0;
-    let age4Male = 0, age4Female = 0;
+    const diet = {
+      sweetenedBeverage: createEmptyMatrix(),
+      alcohol: createEmptyMatrix(),
+      tobacco: createEmptyMatrix(),
+      betelNut: createEmptyMatrix(),
+    };
 
-    let age5Male = 0, age5Female = 0;
-    let age6Male = 0, age6Female = 0;
-    let age7Male = 0, age7Female = 0;
-    let age8Male = 0, age8Female = 0;
-    let age9Male = 0, age9Female = 0;
-
-    let adolescentExcept12Male = 0, adolescentExcept12Female = 0;
-    let adolescent12Male = 0, adolescent12Female = 0;
-    let adolescent15to19Male = 0, adolescent15to19Female = 0;
-    let adult20to59Male = 0, adult20to59Female = 0;
-    let older60PlusMale = 0, older60PlusFemale = 0;
-
-    // Reset to 0 if no records
     if (!Array.isArray(records) || records.length === 0) {
-      setCounts({
-        preg10to14: 0, preg15to19: 0, preg20to49: 0, pregnantTotal: 0,
-        infantMale: 0, infantFemale: 0,
-        age1Male: 0, age1Female: 0,
-        age2Male: 0, age2Female: 0,
-        age3Male: 0, age3Female: 0,
-        age4Male: 0, age4Female: 0,
-        school1to4Male: 0, school1to4Female: 0,
-        age5Male: 0, age5Female: 0,
-        age6Male: 0, age6Female: 0,
-        school5to6Male: 0, school5to6Female: 0,
-        age7Male: 0, age7Female: 0,
-        age8Male: 0, age8Female: 0,
-        age9Male: 0, age9Female: 0,
-        school5to9Male: 0, school5to9Female: 0,
-        adolescentExcept12Male: 0, adolescentExcept12Female: 0,
-        adolescent12Male: 0, adolescent12Female: 0,
-        adolescent15to19Male: 0, adolescent15to19Female: 0,
-        adult20to59Male: 0, adult20to59Female: 0,
-        older60PlusMale: 0, older60PlusFemale: 0,
-        totalAllAgesMale: 0, totalAllAgesFemale: 0, grandTotal: 0,
-      });
+      setCounts(attended);
+      setExaminedCounts(examined);
+      setMedHistory(med);
+      setDietaryHistory(diet);
       return;
     }
 
+    const isTrue = (val: any) => {
+      if (val === undefined || val === null) return false;
+      if (typeof val === 'boolean') return val;
+      const s = val.toString().trim().toLowerCase();
+      return s === 'true' || s === 'yes' || s === '1' || s === 'checked';
+    };
+
+    // Universal multi-key lookup helper
+    const hasCondition = (rawObj: any, flatRecord: any, ...keys: string[]) => {
+      for (const key of keys) {
+        if (rawObj && isTrue(rawObj[key])) return true;
+        if (flatRecord && isTrue(flatRecord[key])) return true;
+      }
+      return false;
+    };
+
     records.forEach((record: any) => {
-      const patientInfo = typeof record.patient_info === 'string'
-        ? parseJsonObject(record.patient_info) || {}
-        : (record.patient_info || {});
+      try {
+        const patientInfo = typeof record.patient_info === 'string'
+          ? parseJsonObject(record.patient_info) || {}
+          : (record.patient_info || {});
 
-      const dentalChartRaw = parseJsonObject(record.dental_chart);
-      const servicesMonRaw = parseJsonObject(record.services_monitoring);
+        const dentalChartRaw = parseJsonObject(record.dental_chart);
+        const servicesMonRaw = parseJsonObject(record.services_monitoring);
 
-      let dentalVisitsCount = 0;
-      let visit1Date = '';
+        const medHistoryRaw = typeof record.medical_history === 'string'
+          ? parseJsonObject(record.medical_history) || {}
+          : (record.medical_history || {});
 
-      if (Array.isArray(dentalChartRaw)) {
-        dentalVisitsCount = dentalChartRaw.length;
-        if (dentalChartRaw.length > 0) {
-          visit1Date = dentalChartRaw[0].visitDate || dentalChartRaw[0].date || '';
-        }
-      } else if (dentalChartRaw && typeof dentalChartRaw === 'object') {
-        dentalVisitsCount = 1;
-        visit1Date = dentalChartRaw.visitDate || dentalChartRaw.date || '';
-      }
+        const socialHistoryRaw = typeof record.social_history === 'string'
+          ? parseJsonObject(record.social_history) || {}
+          : (record.social_history || {});
 
-      let servicesVisitsCount = 0;
-      if (Array.isArray(servicesMonRaw)) {
-        servicesVisitsCount = servicesMonRaw.length;
-      } else if (servicesMonRaw && typeof servicesMonRaw === 'object' && Object.keys(servicesMonRaw).length > 0) {
-        servicesVisitsCount = 1;
-      }
+        let dentalVisitsCount = 0;
+        let visit1Date = '';
 
-      // CONDITION 1: VISIT COUNT (Baseline Intake)
-      const isFirstTimeAttended = dentalVisitsCount <= 1 && servicesVisitsCount <= 1;
-      if (!isFirstTimeAttended) return;
-
-      // CONDITION 2: VISIT DATE MATCH
-      const dateToVerify = visit1Date || record.created_at || record.createdAt || '';
-      const isDateMatching = matchesSelectedMonthAndYear(dateToVerify, month, year);
-      if (!isDateMatching) return;
-
-      // CONDITION 3: AGE, GENDER & PREGNANCY PARSING
-      const ageVal = patientInfo.age || record.age || '';
-      const sexVal = (patientInfo.sex || record.sex || '').toString().trim().toLowerCase();
-      const isMale = sexVal === 'm' || sexVal === 'male';
-      const isFemale = sexVal === 'f' || sexVal === 'female';
-      const isPregnant = Boolean(patientInfo.is_pregnant || record.is_pregnant || patientInfo.pregnant || record.pregnant);
-      const numAgeInYears = parseAgeToYearsNum(ageVal);
-
-      // --- PREGNANT WOMEN ---
-      if (isFemale && isPregnant && numAgeInYears !== null) {
-        const pAge = Math.floor(numAgeInYears);
-        if (pAge >= 10 && pAge <= 14) preg10to14++;
-        else if (pAge >= 15 && pAge <= 19) preg15to19++;
-        else if (pAge >= 20 && pAge <= 49) preg20to49++;
-        return; // Exclude from non-pregnant female columns
-      }
-
-      // --- INFANT 0-11 MOS ---
-      if (isInfantAge(ageVal)) {
-        if (isMale) infantMale++;
-        else if (isFemale) infantFemale++;
-        return;
-      }
-
-      // --- GENERAL AGE EVALUATION ---
-      if (numAgeInYears !== null) {
-        const roundedAge = Math.floor(numAgeInYears);
-
-        // Individual Ages 1 to 4
-        if (roundedAge === 1) {
-          if (isMale) age1Male++; else if (isFemale) age1Female++;
-        } else if (roundedAge === 2) {
-          if (isMale) age2Male++; else if (isFemale) age2Female++;
-        } else if (roundedAge === 3) {
-          if (isMale) age3Male++; else if (isFemale) age3Female++;
-        } else if (roundedAge === 4) {
-          if (isMale) age4Male++; else if (isFemale) age4Female++;
-        } 
-        
-        // Individual Ages 5 to 9
-        else if (roundedAge === 5) {
-          if (isMale) age5Male++; else if (isFemale) age5Female++;
-        } else if (roundedAge === 6) {
-          if (isMale) age6Male++; else if (isFemale) age6Female++;
-        } else if (roundedAge === 7) {
-          if (isMale) age7Male++; else if (isFemale) age7Female++;
-        } else if (roundedAge === 8) {
-          if (isMale) age8Male++; else if (isFemale) age8Female++;
-        } else if (roundedAge === 9) {
-          if (isMale) age9Male++; else if (isFemale) age9Female++;
-        } 
-        
-        // Adolescents 10-14 except 12
-        else if (roundedAge === 10 || roundedAge === 11 || roundedAge === 13 || roundedAge === 14) {
-          if (isMale) adolescentExcept12Male++; else if (isFemale) adolescentExcept12Female++;
+        if (Array.isArray(dentalChartRaw)) {
+          dentalVisitsCount = dentalChartRaw.length;
+          if (dentalChartRaw.length > 0) {
+            visit1Date = dentalChartRaw[0].visitDate || dentalChartRaw[0].date || '';
+          }
+        } else if (dentalChartRaw && typeof dentalChartRaw === 'object') {
+          dentalVisitsCount = 1;
+          visit1Date = dentalChartRaw.visitDate || dentalChartRaw.date || '';
         }
 
-        // Adolescents 12 Y/O
-        else if (roundedAge === 12) {
-          if (isMale) adolescent12Male++; else if (isFemale) adolescent12Female++;
+        let servicesVisitsCount = 0;
+        let serviceDate = '';
+
+        if (Array.isArray(servicesMonRaw)) {
+          servicesVisitsCount = servicesMonRaw.length;
+          if (servicesMonRaw.length > 0) {
+            const lastEntry = servicesMonRaw[servicesMonRaw.length - 1];
+            serviceDate = lastEntry?.date || lastEntry?.visitDate || servicesMonRaw[0]?.date || servicesMonRaw[0]?.visitDate || '';
+          }
+        } else if (servicesMonRaw && typeof servicesMonRaw === 'object' && Object.keys(servicesMonRaw).length > 0) {
+          servicesVisitsCount = 1;
+          serviceDate = servicesMonRaw.date || servicesMonRaw.visitDate || '';
         }
 
-        // Adolescents 15-19 Y/O
-        else if (roundedAge >= 15 && roundedAge <= 19) {
-          if (isMale) adolescent15to19Male++; else if (isFemale) adolescent15to19Female++;
+        const ageVal = patientInfo.age || record.age || '';
+        const sexVal = (patientInfo.sex || record.sex || '').toString().trim().toLowerCase();
+        const isMale = sexVal === 'm' || sexVal === 'male';
+        const isFemale = sexVal === 'f' || sexVal === 'female';
+        const isPregnant = Boolean(patientInfo.is_pregnant || record.is_pregnant || patientInfo.pregnant || record.pregnant);
+        const numAgeInYears = parseAgeToYearsNum(ageVal);
+
+        const recordDate = record.created_at || record.createdAt || record.date || visit1Date || serviceDate || '';
+
+        // 1. ATTENDED LOGIC
+        const isFirstTimeAttended = dentalVisitsCount <= 1 && servicesVisitsCount <= 1;
+        const dateToVerifyAttended = visit1Date || recordDate;
+
+        if (isFirstTimeAttended && matchesSelectedMonthAndYear(dateToVerifyAttended, month, year)) {
+          incrementMatrix(attended, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
         }
 
-        // Adults 20-59 Y/O
-        else if (roundedAge >= 20 && roundedAge <= 59) {
-          if (isMale) adult20to59Male++; else if (isFemale) adult20to59Female++;
+        // 2. EXAMINED LOGIC
+        const hasServicesExamined = servicesVisitsCount >= 1 || dentalVisitsCount >= 1;
+        const dateToVerifyExamined = serviceDate || dateToVerifyAttended;
+
+        if (hasServicesExamined && matchesSelectedMonthAndYear(dateToVerifyExamined, month, year)) {
+          incrementMatrix(examined, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
         }
 
-        // Older Persons 60+ Y/O
-        else if (roundedAge >= 60) {
-          if (isMale) older60PlusMale++; else if (isFemale) older60PlusFemale++;
+        // 3. MEDICAL & DIETARY HISTORY
+        if (matchesSelectedMonthAndYear(recordDate, month, year)) {
+          // Debugging log to inspect parsed record and medical history in browser console
+          console.log('Processing Record for Report:', { age: ageVal, sex: sexVal, medHistoryRaw });
+
+          // 🎯 1. Allergies
+          if (hasCondition(medHistoryRaw, record, 'allergies_checked', 'allergiesChecked', 'allergies', 'allergies_specified')) {
+            incrementMatrix(med.allergies, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 2. Hypertension / CVA
+          if (hasCondition(medHistoryRaw, record, 'hypertension_cva', 'hypertensionCva', 'hypertension', 'cva')) {
+            incrementMatrix(med.hypertension, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 3. Diabetes Mellitus
+          if (hasCondition(medHistoryRaw, record, 'diabetes_mellitus', 'diabetesMellitus', 'diabetes')) {
+            incrementMatrix(med.diabetes, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 4. Blood Disorder
+          if (hasCondition(medHistoryRaw, record, 'blood_disorder', 'bloodDisorder', 'blood_disorders', 'bloodDisorders')) {
+            incrementMatrix(med.bloodDisorder, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 5. Cardiovascular / Heart Disease
+          if (hasCondition(medHistoryRaw, record, 'cardiovascular_heart_diseases', 'cardiovascularHeartDiseases', 'cardiovascular', 'heart_disease')) {
+            incrementMatrix(med.cardiovascular, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 6. Thyroid Disorders
+          if (hasCondition(medHistoryRaw, record, 'thyroid_disorders', 'thyroidDisorders', 'thyroid')) {
+            incrementMatrix(med.thyroid, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 7. Hepatitis
+          if (hasCondition(medHistoryRaw, record, 'hepatitis_checked', 'hepatitisChecked', 'hepatitis', 'hepatitis_specified')) {
+            incrementMatrix(med.hepatitis, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 8. Malignancy
+          if (hasCondition(medHistoryRaw, record, 'malignancy_checked', 'malignancyChecked', 'malignancy', 'malignancy_specified')) {
+            incrementMatrix(med.malignancy, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 9. History of Hospitalization
+          if (hasCondition(medHistoryRaw, record, 'medical_hospitalization_checked', 'medicalHospitalizationChecked', 'medical_hospitalization_specified', 'surgical_checked', 'surgicalChecked', 'last_admission')) {
+            incrementMatrix(med.hospitalization, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 10. Blood Transfusion
+          if (hasCondition(medHistoryRaw, record, 'blood_transfusion_checked', 'bloodTransfusionChecked', 'blood_transfusion_specified', 'blood_transfusion')) {
+            incrementMatrix(med.transfusion, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 11. Tattoo
+          if (hasCondition(medHistoryRaw, record, 'tattoo_checked', 'tattooChecked', 'tattoo_specified', 'tattoo')) {
+            incrementMatrix(med.tattoo, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          // 🎯 DIETARY & SOCIAL HISTORY
+          if (hasCondition(socialHistoryRaw, record, 'sugar_beverages_checked', 'sugarBeveragesChecked', 'sugar_beverages_specified')) {
+            incrementMatrix(diet.sweetenedBeverage, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          if (hasCondition(socialHistoryRaw, record, 'use_alcohol_checked', 'useAlcoholChecked', 'use_alcohol_specified')) {
+            incrementMatrix(diet.alcohol, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          if (hasCondition(socialHistoryRaw, record, 'use_tobacco_checked', 'useTobaccoChecked', 'use_tobacco_specified')) {
+            incrementMatrix(diet.tobacco, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+
+          if (hasCondition(socialHistoryRaw, record, 'betel_nut_checked', 'betelNutChecked', 'betel_nut_specified')) {
+            incrementMatrix(diet.betelNut, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
         }
+      } catch (e) {
+        console.error('Error processing record:', e, record);
       }
     });
 
-    // Sub-totals for School Age
-    const school1to4Male = age1Male + age2Male + age3Male + age4Male;
-    const school1to4Female = age1Female + age2Female + age3Female + age4Female;
+    finalizeMatrixTotals(attended);
+    finalizeMatrixTotals(examined);
+    Object.values(med).forEach(finalizeMatrixTotals);
+    Object.values(diet).forEach(finalizeMatrixTotals);
 
-    const school5to6Male = age5Male + age6Male;
-    const school5to6Female = age5Female + age6Female;
-
-    const school5to9Male = age5Male + age6Male + age7Male + age8Male + age9Male;
-    const school5to9Female = age5Female + age6Female + age7Female + age8Female + age9Female;
-
-    // Total Pregnant Women
-    const pregnantTotal = preg10to14 + preg15to19 + preg20to49;
-
-    // TOTAL ALL AGES MALE
-    const totalAllAgesMale = 
-      infantMale + 
-      school1to4Male + 
-      school5to9Male + 
-      adolescentExcept12Male + 
-      adolescent12Male + 
-      adolescent15to19Male + 
-      adult20to59Male + 
-      older60PlusMale;
-
-    // TOTAL ALL AGES FEMALE (Includes Pregnant Women in Total Female)
-    const totalAllAgesFemale = 
-      pregnantTotal + 
-      infantFemale + 
-      school1to4Female + 
-      school5to9Female + 
-      adolescentExcept12Female + 
-      adolescent12Female + 
-      adolescent15to19Female + 
-      adult20to59Female + 
-      older60PlusFemale;
-
-    // GRAND TOTAL
-    const grandTotal = totalAllAgesMale + totalAllAgesFemale;
-
-    setCounts({
-      preg10to14, preg15to19, preg20to49, pregnantTotal,
-      infantMale, infantFemale,
-      age1Male, age1Female,
-      age2Male, age2Female,
-      age3Male, age3Female,
-      age4Male, age4Female,
-      school1to4Male, school1to4Female,
-      age5Male, age5Female,
-      age6Male, age6Female,
-      school5to6Male, school5to6Female,
-      age7Male, age7Female,
-      age8Male, age8Female,
-      age9Male, age9Female,
-      school5to9Male, school5to9Female,
-      adolescentExcept12Male, adolescentExcept12Female,
-      adolescent12Male, adolescent12Female,
-      adolescent15to19Male, adolescent15to19Female,
-      adult20to59Male, adult20to59Female,
-      older60PlusMale, older60PlusFemale,
-      totalAllAgesMale,
-      totalAllAgesFemale,
-      grandTotal,
-    });
+    setCounts(attended);
+    setExaminedCounts(examined);
+    setMedHistory(med);
+    setDietaryHistory(diet);
   };
   
   useEffect(() => {
@@ -511,9 +457,8 @@ export function MonthlyReportView() {
       {/* Official Form Header Summary */}
       <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 space-y-4 print:bg-white print:text-black print:border-none">
         
-		<div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs font-mono border-b border-slate-800 pb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs font-mono border-b border-slate-800 pb-4">
           
-          {/* Editable Month / Quarter / Year */}
           <div>
             <label className="text-slate-400 block text-[10px] uppercase font-semibold mb-1">
               Month / Quarter / Year:
@@ -553,7 +498,6 @@ export function MonthlyReportView() {
             </div>
           </div>
 
-          {/* Editable Health Facility */}
           <div>
             <label className="text-slate-400 block text-[10px] uppercase font-semibold mb-1">
               Name of Health Facility:
@@ -569,7 +513,6 @@ export function MonthlyReportView() {
             </div>
           </div>
 
-          {/* Editable Municipality / City / Province */}
           <div>
             <label className="text-slate-400 block text-[10px] uppercase font-semibold mb-1">
               Municipality / City / Province:
@@ -636,23 +579,19 @@ export function MonthlyReportView() {
 
               {/* ROW 2: AGE & SUB-GROUPS */}
               <tr className="text-[8.5px] text-center font-semibold">
-                {/* Pregnant Women */}
-                <th className="border border-slate-800 p-0.5">10-14 Y/O</th>
-                <th className="border border-slate-800 p-0.5">15-19 Y/O</th>
-                <th className="border border-slate-800 p-0.5">20-49 Y/O</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">10-14 Y/O</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">15-19 Y/O</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">20-49 Y/O</th>
 
-                {/* Infant 0-11 mos. */}
-                <th className="border border-slate-800 p-0.5">M</th>
-                <th className="border border-slate-800 p-0.5">F</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">M</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">F</th>
 
-                {/* School Age Children (1-4 Y/O + Total) */}
                 <th colSpan={2} className="border border-slate-800 p-0.5">1</th>
                 <th colSpan={2} className="border border-slate-800 p-0.5">2</th>
                 <th colSpan={2} className="border border-slate-800 p-0.5">3</th>
                 <th colSpan={2} className="border border-slate-800 p-0.5">4</th>
                 <th colSpan={2} className="border border-slate-800 p-0.5 bg-slate-800/60 font-bold text-blue-300">Total (1-4 Y/O)</th>
 
-                {/* School Age Children (5, 6, Total 5-6 Y/O, 7, 8, 9, Total 5-9 Y/O) */}
                 <th colSpan={2} className="border border-slate-800 p-0.5">5</th>
                 <th colSpan={2} className="border border-slate-800 p-0.5">6</th>
                 <th colSpan={2} className="border border-slate-800 p-0.5 bg-slate-800/60 font-bold text-blue-300">Total (5-6 Y/O)</th>
@@ -661,225 +600,76 @@ export function MonthlyReportView() {
                 <th colSpan={2} className="border border-slate-800 p-0.5">9</th>
                 <th colSpan={2} className="border border-slate-800 p-0.5 bg-slate-800/60 font-bold text-blue-300">Total (5-9 Y/O)</th>
 
-                {/* Adolescents 10-14 except 12 */}
-                <th className="border border-slate-800 p-0.5">M</th>
-                <th className="border border-slate-800 p-0.5">F</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">M</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">F</th>
 
-                {/* Adolescents 12 Y/O */}
-                <th className="border border-slate-800 p-0.5">M</th>
-                <th className="border border-slate-800 p-0.5">F</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">M</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">F</th>
 
-                {/* Adolescents 15-19 except 12 */}
-                <th className="border border-slate-800 p-0.5">M</th>
-                <th className="border border-slate-800 p-0.5">F</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">M</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">F</th>
 
-                {/* Adults 20-59 */}
-                <th className="border border-slate-800 p-0.5">M</th>
-                <th className="border border-slate-800 p-0.5">F</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">M</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">F</th>
 
-                {/* Older Persons 60+ */}
-                <th className="border border-slate-800 p-0.5">M</th>
-                <th className="border border-slate-800 p-0.5">F</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">M</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">F</th>
 
-                {/* TOTAL ALL AGES */}
-                <th className="border border-slate-800 p-0.5">M</th>
-                <th className="border border-slate-800 p-0.5">F</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle bg-slate-800/80 text-blue-300">M</th>
+                <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle bg-slate-800/80 text-blue-300">F</th>
               </tr>
 
-              {/* ROW 3: M/F GENDER BREAKDOWN */}
+              {/* ROW 3: M/F GENDER BREAKDOWN FOR SCHOOL AGE ONLY */}
               <tr className="text-[8px] text-center font-bold text-slate-400">
-                {/* School Age Children 1-4 M/F */}
-                <th className="border border-slate-800 px-1">&nbsp;</th><th className="border border-slate-800 px-1">&nbsp;</th>
-                <th className="border border-slate-800 px-1">&nbsp;</th><th className="border border-slate-800 px-1">&nbsp;</th>
-                <th className="border border-slate-800 px-1">&nbsp;</th><th className="border border-slate-800 px-1">M</th>
-                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
-                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
-                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th>
+                <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
+                <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
+                <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
+                <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th><th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
 
-                {/* School Age Children 5, 6, Total 5-6, 7, 8, 9, Total 5-9 */}
-                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
-                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
-                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
-                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th>
-                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
-                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
-                <th className="border border-slate-800 px-1">F</th><th className="border border-slate-800 px-1">M</th>
-                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
-                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th>
-				<th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
-                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th>
-				<th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
-                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th>
-				<th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
+                <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
+                <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th><th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
+                <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
+                <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
+                <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
+                <th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">M</th><th className="border border-slate-800 px-1 bg-slate-800/80 text-blue-300">F</th>
               </tr>
             </thead>
 
             <tbody className="divide-y divide-slate-800 text-slate-300 text-center">
-              {/* ------------------------------------------------------------- */}
               {/* SECTION 1: ATTENDANCE & EXAMINATION */}
-              {/* ------------------------------------------------------------- */}
-              <tr className="bg-slate-900/60 font-semibold">
-                <td className="p-1 border border-slate-800 text-left font-bold text-slate-100 sticky left-0 bg-slate-900 z-10">NO. OF PERSON ATTENDED</td>
-                
-                {/* Pregnant Women */}
-                <td className="p-1 border border-slate-800">{counts.preg10to14 || 0}</td>
-                <td className="p-1 border border-slate-800">{counts.preg15to19 || 0}</td>
-                <td className="p-1 border border-slate-800">{counts.preg20to49 || 0}</td>
-                
-                {/* DYNAMIC INFANT COUNTS (0-11 mos: M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-blue-950/30">{counts.infantMale || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-blue-950/30">{counts.infantFemale || 0}</td>
+              <MatrixRow label="NO. OF PERSON ATTENDED" m={counts} />
+              <MatrixRow label="NO. OF PERSON EXAMINED" m={examinedCounts} />
 
-                {/* School Age 1-4 (Ages 1, 2, 3, 4: M, F) */}
-                {/* 🎯 SCHOOL AGE 1 (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age1Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age1Female || 0}</td>
-
-                {/* 🎯 SCHOOL AGE 2 (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age2Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age2Female || 0}</td>
-
-                {/* 🎯 SCHOOL AGE 3 (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age3Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age3Female || 0}</td>
-
-                {/* 🎯 SCHOOL AGE 4 (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age4Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age4Female || 0}</td>
-
-                {/* 🎯 TOTAL 1-4 Y/O (M, F SUM) */}
-                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school1to4Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school1to4Female || 0}</td>
-                
-                {/* 🎯 SCHOOL AGE 5 (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age5Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age5Female || 0}</td>
-
-                {/* 🎯 SCHOOL AGE 6 (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age6Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age6Female || 0}</td>
-
-                {/* 🎯 TOTAL 5-6 Y/O (M, F SUM) */}
-                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school5to6Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school5to6Female || 0}</td>
-
-                {/* 🎯 SCHOOL AGE 7 (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age7Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age7Female || 0}</td>
-
-                {/* 🎯 SCHOOL AGE 8 (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age8Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age8Female || 0}</td>
-
-                {/* 🎯 SCHOOL AGE 9 (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age9Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.age9Female || 0}</td>
-
-                {/* 🎯 TOTAL 5-9 Y/O (M, F SUM) */}
-                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school5to9Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school5to9Female || 0}</td>
-
-                {/* 🎯 ADOLESCENTS 10-14 EXCEPT 12 (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">
-                  {counts.adolescentExcept12Male || 0}
-                </td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">
-                  {counts.adolescentExcept12Female || 0}
-                </td>
-                
-                {/* 🎯 Adolescents 12 Y/O (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adolescent12Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adolescent12Female || 0}</td>
-                
-                {/* 🎯 Adolescents 15-19 Y/O (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adolescent15to19Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adolescent15to19Female || 0}</td>
-                
-                {/* 🎯 Adults 20-59 Y/O (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adult20to59Male || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adult20to59Female || 0}</td>
-                
-                {/* 🎯 Older Persons 60+ Y/O (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.older60PlusMale || 0}</td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.older60PlusFemale || 0}</td>
-                
-                {/* 🎯 TOTAL ALL AGES (M, F) */}
-                <td className="p-1 border border-slate-800 font-bold text-blue-300 bg-slate-900">
-                  {counts.totalAllAgesMale || 0}
-                </td>
-                <td className="p-1 border border-slate-800 font-bold text-blue-300 bg-slate-900">
-                  {counts.totalAllAgesFemale || 0}
-                </td>
-                
-                {/* 🎯 GRAND TOTAL (M + F + Pregnant Women) */}
-                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/40">
-                  {counts.grandTotal || 0}
-                </td>
-				
-              </tr>
-
-              <tr className="bg-slate-900/60 font-semibold">
-                <td className="p-1 border border-slate-800 text-left font-bold text-slate-100 sticky left-0 bg-slate-900 z-10">NO. OF PERSON EXAMINED</td>
-                {Array.from({ length: 42 }).map((_, i) => (
-                  <td key={`exam-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
-                ))}
-                
-              </tr>
-
-              {/* ------------------------------------------------------------- */}
               {/* SECTION A: MEDICAL HISTORY */}
-              {/* ------------------------------------------------------------- */}
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
-                <td colSpan={44} className="p-1 border border-slate-800 uppercase">A. MEDICAL HISTORY</td>
+                <td colSpan={43} className="p-1 border border-slate-800 uppercase">A. MEDICAL HISTORY</td>
               </tr>
-              {[
-                "1. Total No. with Allergies",
-                "2. Total No. with Hypertension / CVA",
-                "3. Total No. with Diabetes Mellitus",
-                "4. Total No. with Blood Disorder",
-                "5. Total No. with Cardiovascular / Heart Disease",
-                "6. Total No. with Thyroid Disorders",
-                "7. Total No. with Hepatitis",
-                "8. Total No. with Malignancy",
-                "9. Total No. with History of Previous Hospitalization",
-                "10. Total No. with Blood Transfusion",
-                "11. Total No. with Tattoo"
-              ].map((item, idx) => (
-                <tr key={`med-${idx}`} className="hover:bg-slate-900/40">
-                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
-                  {Array.from({ length: 42 }).map((_, i) => (
-                    <td key={`med-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
-                  ))}
-                 
-                </tr>
-              ))}
+              <MatrixRow label="1. Total No. with Allergies" m={medHistory.allergies} />
+              <MatrixRow label="2. Total No. with Hypertension / CVA" m={medHistory.hypertension} />
+              <MatrixRow label="3. Total No. with Diabetes Mellitus" m={medHistory.diabetes} />
+              <MatrixRow label="4. Total No. with Blood Disorder" m={medHistory.bloodDisorder} />
+              <MatrixRow label="5. Total No. with Cardiovascular / Heart Disease" m={medHistory.cardiovascular} />
+              <MatrixRow label="6. Total No. with Thyroid Disorders" m={medHistory.thyroid} />
+              <MatrixRow label="7. Total No. with Hepatitis" m={medHistory.hepatitis} />
+              <MatrixRow label="8. Total No. with Malignancy" m={medHistory.malignancy} />
+              <MatrixRow label="9. Total No. with History of Previous Hospitalization" m={medHistory.hospitalization} />
+              <MatrixRow label="10. Total No. with Blood Transfusion" m={medHistory.transfusion} />
+              <MatrixRow label="11. Total No. with Tattoo" m={medHistory.tattoo} />
 
-              {/* ------------------------------------------------------------- */}
               {/* SECTION B: DIETARY / SOCIAL HISTORY STATUS */}
-              {/* ------------------------------------------------------------- */}
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
-                <td colSpan={44} className="p-1 border border-slate-800 uppercase">B. DIETARY / SOCIAL HISTORY STATUS</td>
+                <td colSpan={43} className="p-1 border border-slate-800 uppercase">B. DIETARY / SOCIAL HISTORY STATUS</td>
               </tr>
-              {[
-                "1. Total No. of Sugar Sweetened Beverage / Food Drinker / Eater",
-                "2. Total No. of Alcohol Drinker",
-                "3. Total No. of Tobacco User",
-                "4. Total No. of Betel Nut Chewer"
-              ].map((item, idx) => (
-                <tr key={`diet-${idx}`} className="hover:bg-slate-900/40">
-                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
-                  {Array.from({ length: 42 }).map((_, i) => (
-                    <td key={`diet-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
-                  ))}
-                  
-                </tr>
-              ))}
+              <MatrixRow label="1. Total No. of Sugar Sweetened Beverage / Food Drinker / Eater" m={dietaryHistory.sweetenedBeverage} />
+              <MatrixRow label="2. Total No. of Alcohol Drinker" m={dietaryHistory.alcohol} />
+              <MatrixRow label="3. Total No. of Tobacco User" m={dietaryHistory.tobacco} />
+              <MatrixRow label="4. Total No. of Betel Nut Chewer" m={dietaryHistory.betelNut} />
 
-              {/* ------------------------------------------------------------- */}
               {/* SECTION C: ORAL HEALTH STATUS */}
-              {/* ------------------------------------------------------------- */}
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
-                <td colSpan={44} className="p-1 border border-slate-800 uppercase">C. ORAL HEALTH STATUS</td>
+                <td colSpan={43} className="p-1 border border-slate-800 uppercase">C. ORAL HEALTH STATUS</td>
               </tr>
               {[
                 "1. Total No. with Dental Caries",
@@ -901,15 +691,12 @@ export function MonthlyReportView() {
                   {Array.from({ length: 42 }).map((_, i) => (
                     <td key={`oral-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
                   ))}
-                  
                 </tr>
               ))}
 
-              {/* ------------------------------------------------------------- */}
               {/* SECTION D: SERVICES RENDERED */}
-              {/* ------------------------------------------------------------- */}
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
-                <td colSpan={44} className="p-1 border border-slate-800 uppercase">D. SERVICES RENDERED</td>
+                <td colSpan={43} className="p-1 border border-slate-800 uppercase">D. SERVICES RENDERED</td>
               </tr>
               {[
                 "1. No. Given OP / Scaling",
@@ -932,15 +719,12 @@ export function MonthlyReportView() {
                   {Array.from({ length: 42 }).map((_, i) => (
                     <td key={`serv-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
                   ))}
-                  
                 </tr>
               ))}
 
-              {/* ------------------------------------------------------------- */}
               {/* SECTION E: OFC STATUS */}
-              {/* ------------------------------------------------------------- */}
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
-                <td colSpan={44} className="p-1 border border-slate-800 uppercase">E. ORALLY FIT CHILD (OFC) STATUS</td>
+                <td colSpan={43} className="p-1 border border-slate-800 uppercase">E. ORALLY FIT CHILD (OFC) STATUS</td>
               </tr>
               {["1. OFC Upon Oral Examination", "  NHTS", "  4PS", "2. OFC Upon Oral Rehabilitation", "  NHTS", "  4PS"].map((item, idx) => (
                 <tr key={`ofc-${idx}`} className={`hover:bg-slate-900/40 ${item.startsWith('1.') || item.startsWith('2.') ? 'font-semibold' : 'text-slate-400'}`}>
@@ -948,15 +732,12 @@ export function MonthlyReportView() {
                   {Array.from({ length: 42 }).map((_, i) => (
                     <td key={`ofc-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
                   ))}
-                  
                 </tr>
               ))}
 
-              {/* ------------------------------------------------------------- */}
               {/* SECTION F: PATIENTS EXAMINED GIVEN BOHC */}
-              {/* ------------------------------------------------------------- */}
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
-                <td colSpan={44} className="p-1 border border-slate-800 uppercase">F. NO. OF PATIENTS EXAMINED GIVEN BOHC</td>
+                <td colSpan={43} className="p-1 border border-slate-800 uppercase">F. NO. OF PATIENTS EXAMINED GIVEN BOHC</td>
               </tr>
               {["TOTAL PATIENTS GIVEN BOHC", "  NHTS", "  4PS"].map((item, idx) => (
                 <tr key={`bohc-${idx}`} className={`hover:bg-slate-900/40 ${idx === 0 ? 'font-semibold' : 'text-slate-400'}`}>
@@ -964,15 +745,12 @@ export function MonthlyReportView() {
                   {Array.from({ length: 42 }).map((_, i) => (
                     <td key={`bohc-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
                   ))}
-                  
                 </tr>
               ))}
 
             </tbody>
           </table>
         </div>
-		
-		
       </div>
     </div>
   );
