@@ -288,8 +288,7 @@ export function MonthlyReportView() {
 
         // 3. MEDICAL & DIETARY HISTORY
         if (matchesSelectedMonthAndYear(recordDate, month, year)) {
-          // Debugging log to inspect parsed record and medical history in browser console
-          console.log('Processing Record for Report:', { age: ageVal, sex: sexVal, medHistoryRaw });
+          console.log('Processing Record for Report:', { age: ageVal, sex: sexVal, medHistoryRaw, socialHistoryRaw });
 
           // 🎯 1. Allergies
           if (hasCondition(medHistoryRaw, record, 'allergies_checked', 'allergiesChecked', 'allergies', 'allergies_specified')) {
@@ -346,20 +345,66 @@ export function MonthlyReportView() {
             incrementMatrix(med.tattoo, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 DIETARY & SOCIAL HISTORY
-          if (hasCondition(socialHistoryRaw, record, 'sugar_beverages_checked', 'sugarBeveragesChecked', 'sugar_beverages_specified')) {
+          // 🎯 SECTION B: DIETARY & SOCIAL HISTORY
+          // 1. Sugar Sweetened Beverage / Food
+          if (
+            hasCondition(
+              socialHistoryRaw,
+              record,
+              'sugar_beverages_checked',
+              'sugarBeveragesChecked',
+              'sugar_beverages_specified',
+              'sugarBeveragesSpecified',
+              'sugar_beverage',
+              'sugarBeverage'
+            )
+          ) {
             incrementMatrix(diet.sweetenedBeverage, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          if (hasCondition(socialHistoryRaw, record, 'use_alcohol_checked', 'useAlcoholChecked', 'use_alcohol_specified')) {
+          // 2. Alcohol Drinker
+          if (
+            hasCondition(
+              socialHistoryRaw,
+              record,
+              'use_alcohol_checked',
+              'useAlcoholChecked',
+              'use_alcohol_specified',
+              'useAlcoholSpecified',
+              'alcohol'
+            )
+          ) {
             incrementMatrix(diet.alcohol, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          if (hasCondition(socialHistoryRaw, record, 'use_tobacco_checked', 'useTobaccoChecked', 'use_tobacco_specified')) {
+          // 3. Tobacco User
+          if (
+            hasCondition(
+              socialHistoryRaw,
+              record,
+              'use_tobacco_checked',
+              'useTobaccoChecked',
+              'use_tobacco_specified',
+              'useTobaccoSpecified',
+              'tobacco'
+            )
+          ) {
             incrementMatrix(diet.tobacco, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          if (hasCondition(socialHistoryRaw, record, 'betel_nut_checked', 'betelNutChecked', 'betel_nut_specified')) {
+          // 4. Betel Nut Chewer
+          if (
+            hasCondition(
+              socialHistoryRaw,
+              record,
+              'betel_nut_checked',
+              'betelNutChecked',
+              'betel_nut_specified',
+              'betelNutSpecified',
+              'betel_nut',
+              'betelNut'
+            )
+          ) {
             incrementMatrix(diet.betelNut, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
         }
