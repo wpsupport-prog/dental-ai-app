@@ -5,6 +5,8 @@ import axios from 'axios';
 import { createEmptyMatrix } from '../utils/reportTypes';
 import type { DemographicMatrix } from '../utils/reportTypes';
 
+import { calculateDentalCounts } from '../utils/dentalChartCalculator';
+
 import {
   parseAgeToYearsNum,
   isInfantAge,
@@ -17,6 +19,96 @@ import {
 const rawHost = window.location.hostname;
 const hostName = (rawHost === 'tauri.localhost' || !rawHost) ? '127.0.0.1' : rawHost;
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${hostName}:8000`;
+
+// Helper to add an exact numeric count (e.g., 3 decayed teeth) to the matrix
+const addValueToMatrix = (
+  m: DemographicMatrix,
+  valToAdd: number,
+  numAgeInYears: number,
+  rawAgeStr: string,
+  isMale: boolean,
+  isFemale: boolean,
+  isPregnant: boolean
+) => {
+  if (!valToAdd || valToAdd <= 0) return;
+
+  // Pregnant Women
+  if (isPregnant && isFemale) {
+    if (numAgeInYears >= 10 && numAgeInYears <= 14) m.preg10to14 = (m.preg10to14 || 0) + valToAdd;
+    else if (numAgeInYears >= 15 && numAgeInYears <= 19) m.preg15to19 = (m.preg15to19 || 0) + valToAdd;
+    else if (numAgeInYears >= 20 && numAgeInYears <= 49) m.preg20to49 = (m.preg20to49 || 0) + valToAdd;
+  }
+
+  // Infant 0-11 mos
+  if (isInfantAge(rawAgeStr, numAgeInYears)) {
+    if (isMale) m.infantMale = (m.infantMale || 0) + valToAdd;
+    if (isFemale) m.infantFemale = (m.infantFemale || 0) + valToAdd;
+    return;
+  }
+
+  // School Age 1-4 Y/O
+  if (numAgeInYears === 1) {
+    if (isMale) m.age1Male = (m.age1Male || 0) + valToAdd;
+    if (isFemale) m.age1Female = (m.age1Female || 0) + valToAdd;
+  } else if (numAgeInYears === 2) {
+    if (isMale) m.age2Male = (m.age2Male || 0) + valToAdd;
+    if (isFemale) m.age2Female = (m.age2Female || 0) + valToAdd;
+  } else if (numAgeInYears === 3) {
+    if (isMale) m.age3Male = (m.age3Male || 0) + valToAdd;
+    if (isFemale) m.age3Female = (m.age3Female || 0) + valToAdd;
+  } else if (numAgeInYears === 4) {
+    if (isMale) m.age4Male = (m.age4Male || 0) + valToAdd;
+    if (isFemale) m.age4Female = (m.age4Female || 0) + valToAdd;
+  }
+
+  // School Age 5-9 Y/O
+  else if (numAgeInYears === 5) {
+    if (isMale) m.age5Male = (m.age5Male || 0) + valToAdd;
+    if (isFemale) m.age5Female = (m.age5Female || 0) + valToAdd;
+  } else if (numAgeInYears === 6) {
+    if (isMale) m.age6Male = (m.age6Male || 0) + valToAdd;
+    if (isFemale) m.age6Female = (m.age6Female || 0) + valToAdd;
+  } else if (numAgeInYears === 7) {
+    if (isMale) m.age7Male = (m.age7Male || 0) + valToAdd;
+    if (isFemale) m.age7Female = (m.age7Female || 0) + valToAdd;
+  } else if (numAgeInYears === 8) {
+    if (isMale) m.age8Male = (m.age8Male || 0) + valToAdd;
+    if (isFemale) m.age8Female = (m.age8Female || 0) + valToAdd;
+  } else if (numAgeInYears === 9) {
+    if (isMale) m.age9Male = (m.age9Male || 0) + valToAdd;
+    if (isFemale) m.age9Female = (m.age9Female || 0) + valToAdd;
+  }
+
+  // Adolescents 10-14 (except 12)
+  else if (numAgeInYears >= 10 && numAgeInYears <= 14 && numAgeInYears !== 12) {
+    if (isMale) m.adolescentExcept12Male = (m.adolescentExcept12Male || 0) + valToAdd;
+    if (isFemale) m.adolescentExcept12Female = (m.adolescentExcept12Female || 0) + valToAdd;
+  }
+
+  // Adolescent 12 Y/O
+  else if (numAgeInYears === 12) {
+    if (isMale) m.adolescent12Male = (m.adolescent12Male || 0) + valToAdd;
+    if (isFemale) m.adolescent12Female = (m.adolescent12Female || 0) + valToAdd;
+  }
+
+  // Adolescents 15-19 Y/O
+  else if (numAgeInYears >= 15 && numAgeInYears <= 19) {
+    if (isMale) m.adolescent15to19Male = (m.adolescent15to19Male || 0) + valToAdd;
+    if (isFemale) m.adolescent15to19Female = (m.adolescent15to19Female || 0) + valToAdd;
+  }
+
+  // Adults 20-59 Y/O
+  else if (numAgeInYears >= 20 && numAgeInYears <= 59) {
+    if (isMale) m.adult20to59Male = (m.adult20to59Male || 0) + valToAdd;
+    if (isFemale) m.adult20to59Female = (m.adult20to59Female || 0) + valToAdd;
+  }
+
+  // Older Persons 60+ Y/O
+  else if (numAgeInYears >= 60) {
+    if (isMale) m.older60PlusMale = (m.older60PlusMale || 0) + valToAdd;
+    if (isFemale) m.older60PlusFemale = (m.older60PlusFemale || 0) + valToAdd;
+  }
+};
 
 // --- REUSABLE MATRIX ROW COMPONENT ---
 const MatrixRow = ({ label, m }: { label: string; m: DemographicMatrix }) => (
@@ -128,6 +220,17 @@ export function MonthlyReportView() {
     dentoFacialAnomalies: createEmptyMatrix(),
   });
 
+  // SECTION C (ITEMS 7 & 8): df T AND DMF T INDICATORS
+  const [dmfDfCounts, setDmfDfCounts] = useState({
+    totalDf: createEmptyMatrix(),
+    tempDecayed: createEmptyMatrix(),
+    tempFilled: createEmptyMatrix(),
+    totalDmf: createEmptyMatrix(),
+    permDecayed: createEmptyMatrix(),
+    permMissing: createEmptyMatrix(),
+    permFilled: createEmptyMatrix(),
+  });
+
   const fetchReportData = async () => {
     setIsLoading(true);
     
@@ -212,16 +315,26 @@ export function MonthlyReportView() {
       dentoFacialAnomalies: createEmptyMatrix(),
     };
 
+    const dmfDf = {
+      totalDf: createEmptyMatrix(),
+      tempDecayed: createEmptyMatrix(),
+      tempFilled: createEmptyMatrix(),
+      totalDmf: createEmptyMatrix(),
+      permDecayed: createEmptyMatrix(),
+      permMissing: createEmptyMatrix(),
+      permFilled: createEmptyMatrix(),
+    };
+
     if (!Array.isArray(records) || records.length === 0) {
       setCounts(attended);
       setExaminedCounts(examined);
       setMedHistory(med);
       setDietaryHistory(diet);
       setOralHealth(oral);
+      setDmfDfCounts(dmfDf);
       return;
     }
 
-    // Enhanced truthy evaluator including Oral Health Summary checkmark '✓'
     const isTrue = (val: any) => {
       if (val === undefined || val === null) return false;
       if (typeof val === 'boolean') return val;
@@ -236,7 +349,6 @@ export function MonthlyReportView() {
       );
     };
 
-    // Universal multi-key lookup helper across object hierarchies
     const hasCondition = (rawObj: any, flatRecord: any, ...keys: string[]) => {
       for (const key of keys) {
         if (rawObj && isTrue(rawObj[key])) return true;
@@ -262,7 +374,6 @@ export function MonthlyReportView() {
           ? parseJsonObject(record.social_history) || {}
           : (record.social_history || {});
 
-        // Parse Oral Health Condition Summary (Section A Data)
         const oralSummaryRaw = typeof record.oral_health_condition_summary === 'string'
           ? parseJsonObject(record.oral_health_condition_summary) || {}
           : (
@@ -324,33 +435,6 @@ export function MonthlyReportView() {
         if (hasServicesExamined && matchesSelectedMonthAndYear(dateToVerifyExamined, month, year)) {
           incrementMatrix(examined, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
         }
-
-        // Helper to scan Dental Chart markings if Section A summary dropdown wasn't explicitly saved
-        const checkDentalChartMarkings = (type: string): boolean => {
-          if (!dentalChartRaw) return false;
-          const visitsArr = Array.isArray(dentalChartRaw) ? dentalChartRaw : [dentalChartRaw];
-
-          for (const v of visitsArr) {
-            if (!v) continue;
-            const chartData = v.chartData || v.teeth || {};
-            if (typeof chartData === 'object') {
-              for (const code of Object.values(chartData)) {
-                if (typeof code === 'string') {
-                  const upperCode = code.toUpperCase().trim();
-                  if (type === 'caries') {
-                    if (
-                      upperCode.includes('C') ||
-                      upperCode.includes('D') ||
-                      upperCode.includes('/') ||
-                      upperCode.includes('CARIES')
-                    ) return true;
-                  }
-                }
-              }
-            }
-          }
-          return false;
-        };
 
         // 🎯 SECTION A, B & C AGGREGATION (FILTERED BY MONTH & YEAR)
         if (matchesSelectedMonthAndYear(recordDate, month, year)) {
@@ -417,94 +501,60 @@ export function MonthlyReportView() {
             incrementMatrix(diet.betelNut, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 SECTION C: ORAL HEALTH STATUS (STRICTLY BOUND TO OralHealthConditionSummary SECTION A)
-			if (matchesSelectedMonthAndYear(recordDate, month, year)) {
+          // SECTION C: ORAL HEALTH STATUS (ITEMS 1 to 6)
+          if (hasCondition(oralSummaryRaw, record, 'oh_dental_caries', 'dentalCaries', 'dental_caries', 'caries')) {
+            incrementMatrix(oral.dentalCaries, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
 
-			  // 1. Dental Caries
-			  if (
-				hasCondition(
-				  oralSummaryRaw,
-				  record,
-				  'oh_dental_caries',
-				  'dentalCaries',
-				  'dental_caries',
-				  'caries'
-				)
-			  ) {
-				incrementMatrix(oral.dentalCaries, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-			  }
+          if (hasCondition(oralSummaryRaw, record, 'oh_gingivitis', 'gingivitis', 'has_gingivitis')) {
+            incrementMatrix(oral.gingivitis, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
 
-			  // 2. Gingivitis
-			  if (
-				hasCondition(
-				  oralSummaryRaw,
-				  record,
-				  'oh_gingivitis',
-				  'gingivitis',
-				  'has_gingivitis'
-				)
-			  ) {
-				incrementMatrix(oral.gingivitis, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-			  }
+          if (hasCondition(oralSummaryRaw, record, 'oh_periodontal_disease', 'periodontalDisease', 'periodontal_disease')) {
+            incrementMatrix(oral.periodontalDisease, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
 
-			  // 3. Periodontal Disease
-			  if (
-				hasCondition(
-				  oralSummaryRaw,
-				  record,
-				  'oh_periodontal_disease',
-				  'periodontalDisease',
-				  'periodontal_disease'
-				)
-			  ) {
-				incrementMatrix(oral.periodontalDisease, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-			  }
+          if (hasCondition(oralSummaryRaw, record, 'oh_debris', 'debris', 'oral_debris', 'oralDebris')) {
+            incrementMatrix(oral.debris, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
 
-			  // 4. Oral Debris
-			  if (
-				hasCondition(
-				  oralSummaryRaw,
-				  record,
-				  'oh_debris',
-				  'debris',
-				  'oral_debris',
-				  'oralDebris'
-				)
-			  ) {
-				incrementMatrix(oral.debris, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-			  }
+          if (hasCondition(oralSummaryRaw, record, 'oh_calculus', 'calculus', 'has_calculus')) {
+            incrementMatrix(oral.calculus, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
 
-			  // 5. Calculus
-			  if (
-				hasCondition(
-				  oralSummaryRaw,
-				  record,
-				  'oh_calculus',
-				  'calculus',
-				  'has_calculus'
-				)
-			  ) {
-				incrementMatrix(oral.calculus, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-			  }
+          if (hasCondition(oralSummaryRaw, record, 'oh_cleft_lip_palate', 'cleftLipPalate', 'cleft_lip_palate', 'cleftLip', 'cleftPalate', 'oh_abnormal_growth', 'abnormalGrowth')) {
+            incrementMatrix(oral.dentoFacialAnomalies, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
 
-			  // 6. Dento-Facial Anomalies (Cleft Lip / Palate)
-			  if (
-				hasCondition(
-				  oralSummaryRaw,
-				  record,
-				  'oh_cleft_lip_palate',
-				  'cleftLipPalate',
-				  'cleft_lip_palate',
-				  'cleftLip',
-				  'cleftPalate',
-				  'oh_abnormal_growth',
-				  'abnormalGrowth'
-				)
-			  ) {
-				incrementMatrix(oral.dentoFacialAnomalies, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-			  }
-			}
-		
+          // 🎯 SECTION C (ITEMS 7 & 8): ROBUST CHARTS DATA EXTRACTION & DENTAL COUNTS SUMMATION
+          let chartData: Record<string, string> = {};
+          
+          if (Array.isArray(dentalChartRaw) && dentalChartRaw.length > 0) {
+            const rawVisitData = dentalChartRaw[0]?.chartData;
+            chartData = typeof rawVisitData === 'string' ? parseJsonObject(rawVisitData) || {} : (rawVisitData || {});
+          } else if (dentalChartRaw && typeof dentalChartRaw === 'object') {
+            const rawVisitData = dentalChartRaw.chartData || dentalChartRaw;
+            chartData = typeof rawVisitData === 'string' ? parseJsonObject(rawVisitData) || {} : (rawVisitData || {});
+          }
+
+          const dCounts = calculateDentalCounts(chartData);
+
+          // 7. Total (df) T
+          addValueToMatrix(dmfDf.totalDf, dCounts.totalDF, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          // a. Total decayed (d)
+          addValueToMatrix(dmfDf.tempDecayed, dCounts.tempDecayed, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          // b. Total filled (f)
+          addValueToMatrix(dmfDf.tempFilled, dCounts.tempFilled, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+
+          // 8. Total (DMF) T
+          addValueToMatrix(dmfDf.totalDmf, dCounts.totalDMF, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          // a. Total Decayed (D)
+          addValueToMatrix(dmfDf.permDecayed, dCounts.permDecayed, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          // b. Total Missing (M)
+          addValueToMatrix(dmfDf.permMissing, dCounts.permMissing, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          // c. Total Filled (F)
+          addValueToMatrix(dmfDf.permFilled, dCounts.permFilled, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+
         }
       } catch (e) {
         console.error('Error processing record:', e, record);
@@ -516,12 +566,14 @@ export function MonthlyReportView() {
     Object.values(med).forEach(finalizeMatrixTotals);
     Object.values(diet).forEach(finalizeMatrixTotals);
     Object.values(oral).forEach(finalizeMatrixTotals);
+    Object.values(dmfDf).forEach(finalizeMatrixTotals);
 
     setCounts(attended);
     setExaminedCounts(examined);
     setMedHistory(med);
     setDietaryHistory(diet);
     setOralHealth(oral);
+    setDmfDfCounts(dmfDf);
   };
   
   useEffect(() => {
@@ -822,22 +874,17 @@ export function MonthlyReportView() {
               <MatrixRow label="4. Total No. with Oral Debris" m={oralHealth.debris} />
               <MatrixRow label="5. Total No. with Calculus" m={oralHealth.calculus} />
               <MatrixRow label="6. Total No. with Dento-Facial Anomalies (cleft lip/palate, etc.)" m={oralHealth.dentoFacialAnomalies} />
-              {[
-                "7. Total (df) T",
-                "  a. Total decayed (d)",
-                "  b. Total filled (f)",
-                "8. Total (DMF) T",
-                "  a. Total Decayed (D)",
-                "  b. Total Missing (M)",
-                "  c. Total Filled (F)"
-              ].map((item, idx) => (
-                <tr key={`oral-${idx}`} className={`hover:bg-slate-900/40 ${item.includes('Total (') ? 'font-semibold bg-slate-900/30' : ''}`}>
-                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
-                  {Array.from({ length: 42 }).map((_, i) => (
-                    <td key={`oral-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
-                  ))}
-                </tr>
-              ))}
+              
+              {/* ITEM 7: TOTAL (df) T METRICS */}
+              <MatrixRow label="7. Total (df) T" m={dmfDfCounts.totalDf} />
+              <MatrixRow label="  a. Total decayed (d)" m={dmfDfCounts.tempDecayed} />
+              <MatrixRow label="  b. Total filled (f)" m={dmfDfCounts.tempFilled} />
+
+              {/* ITEM 8: TOTAL (DMF) T METRICS */}
+              <MatrixRow label="8. Total (DMF) T" m={dmfDfCounts.totalDmf} />
+              <MatrixRow label="  a. Total Decayed (D)" m={dmfDfCounts.permDecayed} />
+              <MatrixRow label="  b. Total Missing (M)" m={dmfDfCounts.permMissing} />
+              <MatrixRow label="  c. Total Filled (F)" m={dmfDfCounts.permFilled} />
 
               {/* SECTION D: SERVICES RENDERED */}
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">

@@ -138,3 +138,93 @@ export const finalizeMatrixTotals = (matrix: DemographicMatrix) => {
 
   matrix.grandTotal = matrix.totalAllAgesMale + matrix.totalAllAgesFemale;
 };
+
+// Helper to add a specific integer count (e.g. 3 decayed teeth) to the correct demographic matrix cell
+export const addValueToMatrix = (
+  m: DemographicMatrix,
+  valToAdd: number,
+  numAgeInYears: number,
+  rawAgeStr: string,
+  isMale: boolean,
+  isFemale: boolean,
+  isPregnant: boolean
+) => {
+  if (valToAdd <= 0) return;
+
+  // Pregnant Women
+  if (isPregnant && isFemale) {
+    if (numAgeInYears >= 10 && numAgeInYears <= 14) m.preg10to14 = (m.preg10to14 || 0) + valToAdd;
+    else if (numAgeInYears >= 15 && numAgeInYears <= 19) m.preg15to19 = (m.preg15to19 || 0) + valToAdd;
+    else if (numAgeInYears >= 20 && numAgeInYears <= 49) m.preg20to49 = (m.preg20to49 || 0) + valToAdd;
+  }
+
+  // Infant 0-11 mos
+  if (isInfantAge(rawAgeStr, numAgeInYears)) {
+    if (isMale) m.infantMale = (m.infantMale || 0) + valToAdd;
+    if (isFemale) m.infantFemale = (m.infantFemale || 0) + valToAdd;
+    return;
+  }
+
+  // School Age 1-4 Y/O
+  if (numAgeInYears === 1) {
+    if (isMale) m.age1Male = (m.age1Male || 0) + valToAdd;
+    if (isFemale) m.age1Female = (m.age1Female || 0) + valToAdd;
+  } else if (numAgeInYears === 2) {
+    if (isMale) m.age2Male = (m.age2Male || 0) + valToAdd;
+    if (isFemale) m.age2Female = (m.age2Female || 0) + valToAdd;
+  } else if (numAgeInYears === 3) {
+    if (isMale) m.age3Male = (m.age3Male || 0) + valToAdd;
+    if (isFemale) m.age3Female = (m.age3Female || 0) + valToAdd;
+  } else if (numAgeInYears === 4) {
+    if (isMale) m.age4Male = (m.age4Male || 0) + valToAdd;
+    if (isFemale) m.age4Female = (m.age4Female || 0) + valToAdd;
+  }
+
+  // School Age 5-9 Y/O
+  else if (numAgeInYears === 5) {
+    if (isMale) m.age5Male = (m.age5Male || 0) + valToAdd;
+    if (isFemale) m.age5Female = (m.age5Female || 0) + valToAdd;
+  } else if (numAgeInYears === 6) {
+    if (isMale) m.age6Male = (m.age6Male || 0) + valToAdd;
+    if (isFemale) m.age6Female = (m.age6Female || 0) + valToAdd;
+  } else if (numAgeInYears === 7) {
+    if (isMale) m.age7Male = (m.age7Male || 0) + valToAdd;
+    if (isFemale) m.age7Female = (m.age7Female || 0) + valToAdd;
+  } else if (numAgeInYears === 8) {
+    if (isMale) m.age8Male = (m.age8Male || 0) + valToAdd;
+    if (isFemale) m.age8Female = (m.age8Female || 0) + valToAdd;
+  } else if (numAgeInYears === 9) {
+    if (isMale) m.age9Male = (m.age9Male || 0) + valToAdd;
+    if (isFemale) m.age9Female = (m.age9Female || 0) + valToAdd;
+  }
+
+  // Adolescents 10-14 (except 12)
+  else if (numAgeInYears >= 10 && numAgeInYears <= 14 && numAgeInYears !== 12) {
+    if (isMale) m.adolescentExcept12Male = (m.adolescentExcept12Male || 0) + valToAdd;
+    if (isFemale) m.adolescentExcept12Female = (m.adolescentExcept12Female || 0) + valToAdd;
+  }
+
+  // Adolescent 12 Y/O
+  else if (numAgeInYears === 12) {
+    if (isMale) m.adolescent12Male = (m.adolescent12Male || 0) + valToAdd;
+    if (isFemale) m.adolescent12Female = (m.adolescent12Female || 0) + valToAdd;
+  }
+
+  // Adolescents 15-19 Y/O
+  else if (numAgeInYears >= 15 && numAgeInYears <= 19) {
+    if (isMale) m.adolescent15to19Male = (m.adolescent15to19Male || 0) + valToAdd;
+    if (isFemale) m.adolescent15to19Female = (m.adolescent15to19Female || 0) + valToAdd;
+  }
+
+  // Adults 20-59 Y/O
+  else if (numAgeInYears >= 20 && numAgeInYears <= 59) {
+    if (isMale) m.adult20to59Male = (m.adult20to59Male || 0) + valToAdd;
+    if (isFemale) m.adult20to59Female = (m.adult20to59Female || 0) + valToAdd;
+  }
+
+  // Older Persons 60+ Y/O
+  else if (numAgeInYears >= 60) {
+    if (isMale) m.older60PlusMale = (m.older60PlusMale || 0) + valToAdd;
+    if (isFemale) m.older60PlusFemale = (m.older60PlusFemale || 0) + valToAdd;
+  }
+};
