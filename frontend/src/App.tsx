@@ -287,7 +287,7 @@ useEffect(() => {
       },
     ]);
     setServicesData([]);
-	// 🎯 5. RESET RECORD OF SERVICES RENDERED (NEW FIELDS) TO 1 BLANK ROW
+	// RESET RECORD OF SERVICES RENDERED (NEW FIELDS) TO 1 BLANK ROW
 	  setRenderedServices([
 		{
 		  id: `service-row-${Date.now()}`,
@@ -299,6 +299,12 @@ useEffect(() => {
 		  temporaryFilling: '',
 		  extraction: '',
 		  consultation: false,
+		  gumTreatment: false,
+		  postOperativeTreatment: false,
+		  oralAbscessDrained: false,
+		  referred: false,
+		  givenCounselling: false,
+		  completedToothBrushingDrill: false,
 		  remarks: '',
 		},
 	  ]);
@@ -517,6 +523,12 @@ useEffect(() => {
         r.temporaryFilling.trim() !== '' ||
         r.extraction.trim() !== '' ||
         r.consultation ||
+        r.gumTreatment ||
+        r.postOperativeTreatment ||
+        r.oralAbscessDrained ||
+        r.referred ||
+        r.givenCounselling ||
+        r.completedToothBrushingDrill ||
         r.remarks.trim() !== ''
     );
 
@@ -558,6 +570,7 @@ useEffect(() => {
               ...s,
               visitLabel: rawLabel !== '' && rawLabel !== 'Initial Entry' ? rawLabel : getLocalDateOnly(),
               visitDate: rawDate !== '' ? rawDate : getLocalPCDateTime(),
+              fluorideStatus: s.fluorideStatus || '', // <-- PRESERVE FLUORIDE STATUS
             };
           })
         : servicesData;

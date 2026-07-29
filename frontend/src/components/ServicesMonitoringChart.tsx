@@ -5,6 +5,7 @@ export interface ServiceVisitRecord {
   id: string;
   visitLabel: string;
   visitDate: string;
+  fluorideStatus?: '1st' | 'completed' | '';
   chartData: Record<string, string>;
 }
 
@@ -67,6 +68,7 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
     id: 'service-visit-1',
     visitLabel: '',
     visitDate: getLocalPCDateTime(),
+    fluorideStatus: '',
     chartData: {},
   };
 
@@ -82,6 +84,7 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
           id: 'service-visit-1',
           visitLabel: '',
           visitDate: getLocalPCDateTime(),
+          fluorideStatus: '',
           chartData: (data as Record<string, string>) || {},
         },
       ];
@@ -122,6 +125,7 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
       id: `service-visit-${Date.now()}`,
       visitLabel: `Visit ${newVisitIndex}`,
       visitDate: getLocalPCDateTime(),
+      fluorideStatus: '',
       chartData: {},
     };
 
@@ -145,6 +149,19 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
     const updatedVisits = visits.map((v) =>
       v.id === activeVisit.id ? { ...v, visitDate: newDate } : v
     );
+    onChange(updatedVisits);
+  };
+
+  // Toggle / update Fluoride Status radio buttons
+  const handleFluorideStatusChange = (status: '1st' | 'completed') => {
+    if (!isEditable || !onChange) return;
+    const updatedVisits = visits.map((v) => {
+      if (v.id === activeVisit.id) {
+        const newStatus = v.fluorideStatus === status ? '' : status;
+        return { ...v, fluorideStatus: newStatus as '1st' | 'completed' | '' };
+      }
+      return v;
+    });
     onChange(updatedVisits);
   };
 
@@ -253,18 +270,54 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
       )}
 
       {/* Active Visit Info Subheader */}
-      <div className="flex justify-between items-center text-xs text-slate-400 px-1">
-        {/* Left Side: Editable Active Log Name */}
-        <div className="flex items-center gap-2">
-          <span>Active Log:</span>
-          <input
-            type="text"
-            readOnly={!isEditable}
-            value={sanitizeServiceLabel(activeVisit?.visitLabel)}
-            onChange={(e) => handleServiceLabelChange(e.target.value)}
-            className="bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs px-2 py-1 rounded w-36 focus:outline-none focus:border-blue-500"
-            placeholder="mm/dd/yyyy"
-          />
+      <div className="flex flex-wrap justify-between items-start text-xs text-slate-400 px-1 gap-4">
+        {/* Left Side: Active Log & Fluoride Status (Stacked Vertically) */}
+        <div className="flex flex-col gap-2">
+          {/* Active Log Date Input */}
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-slate-300">Active Log:</span>
+            <input
+              type="text"
+              readOnly={!isEditable}
+              value={sanitizeServiceLabel(activeVisit?.visitLabel)}
+              onChange={(e) => handleServiceLabelChange(e.target.value)}
+              className="bg-slate-900 border border-slate-700 text-slate-200 font-bold text-xs px-2.5 py-1 rounded w-36 focus:outline-none focus:border-blue-500"
+              placeholder="mm/dd/yyyy"
+            />
+          </div>
+
+          {/* 🎯 FLUORIDE STATUS RADIO BUTTONS (POSITIONED DIRECTLY UNDER ACTIVE LOG) */}
+          <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs w-fit">
+            <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+              Fluoride Status:
+            </span>
+            
+            <label className="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white transition">
+              <input
+                type="radio"
+                disabled={!isEditable}
+                name={`fluoride-status-${activeVisit?.id}`}
+                value="1st"
+                checked={activeVisit?.fluorideStatus === '1st'}
+                onChange={() => handleFluorideStatusChange('1st')}
+                className="text-blue-600 bg-slate-950 border-slate-700 focus:ring-0 cursor-pointer"
+              />
+              <span className="font-medium text-slate-200">1st Fluoride</span>
+            </label>
+
+            <label className="flex items-center gap-1.5 cursor-pointer text-slate-300 hover:text-white transition">
+              <input
+                type="radio"
+                disabled={!isEditable}
+                name={`fluoride-status-${activeVisit?.id}`}
+                value="completed"
+                checked={activeVisit?.fluorideStatus === 'completed'}
+                onChange={() => handleFluorideStatusChange('completed')}
+                className="text-emerald-500 bg-slate-950 border-slate-700 focus:ring-0 cursor-pointer"
+              />
+              <span className="font-medium text-slate-200">Completed</span>
+            </label>
+          </div>
         </div>
 
         {/* Right Side: Editable Date/Time with Local Timestamp Fallback */}

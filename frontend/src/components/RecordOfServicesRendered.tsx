@@ -11,6 +11,15 @@ export interface ServiceRenderedRow {
   temporaryFilling: string;
   extraction: string;
   consultation: boolean;
+  
+  // Checkbox Fields
+  gumTreatment?: boolean;
+  postOperativeTreatment?: boolean;
+  oralAbscessDrained?: boolean;
+  referred?: boolean;
+  givenCounselling?: boolean;
+  completedToothBrushingDrill?: boolean;
+
   remarks: string;
 }
 
@@ -30,48 +39,39 @@ const getLocalDateOnly = (): string => {
   });
 };
 
+const createEmptyRow = (): ServiceRenderedRow => ({
+  id: `service-row-${Date.now()}`,
+  date: getLocalDateOnly(),
+  oralProphylaxis: false,
+  fluorideVarnishGel: false,
+  pitAndFissureSealant: '',
+  permanentFilling: '',
+  temporaryFilling: '',
+  extraction: '',
+  consultation: false,
+  gumTreatment: false,
+  postOperativeTreatment: false,
+  oralAbscessDrained: false,
+  referred: false,
+  givenCounselling: false,
+  completedToothBrushingDrill: false,
+  remarks: '',
+});
+
 export const RecordOfServicesRendered: React.FC<RecordOfServicesRenderedProps> = ({
   rows = [],
   onChange,
   isEditable = true,
 }) => {
-  // Guarantee initial row if empty
-  const initialRows: ServiceRenderedRow[] = rows.length > 0 ? rows : [
-    {
-      id: `service-row-${Date.now()}`,
-      date: getLocalDateOnly(),
-      oralProphylaxis: false,
-      fluorideVarnishGel: false,
-      pitAndFissureSealant: '',
-      permanentFilling: '',
-      temporaryFilling: '',
-      extraction: '',
-      consultation: false,
-      remarks: '',
-    }
-  ];
+  const initialRows: ServiceRenderedRow[] = rows.length > 0 ? rows : [createEmptyRow()];
 
   const [serviceRows, setServiceRows] = useState<ServiceRenderedRow[]>(initialRows);
   
-  // 🔑 ADD THIS EFFECT: Sync internal state whenever parent `rows` prop updates (e.g. on form reset)
   useEffect(() => {
     if (rows && rows.length > 0) {
       setServiceRows(rows);
     } else {
-      setServiceRows([
-        {
-          id: `service-row-${Date.now()}`,
-          date: getLocalDateOnly(),
-          oralProphylaxis: false,
-          fluorideVarnishGel: false,
-          pitAndFissureSealant: '',
-          permanentFilling: '',
-          temporaryFilling: '',
-          extraction: '',
-          consultation: false,
-          remarks: '',
-        },
-      ]);
+      setServiceRows([createEmptyRow()]);
     }
   }, [rows]);
 
@@ -81,19 +81,7 @@ export const RecordOfServicesRendered: React.FC<RecordOfServicesRenderedProps> =
   };
 
   const handleAddRow = () => {
-    const newRow: ServiceRenderedRow = {
-      id: `service-row-${Date.now()}`,
-      date: getLocalDateOnly(),
-      oralProphylaxis: false,
-      fluorideVarnishGel: false,
-      pitAndFissureSealant: '',
-      permanentFilling: '',
-      temporaryFilling: '',
-      extraction: '',
-      consultation: false,
-      remarks: '',
-    };
-    updateRows([...serviceRows, newRow]);
+    updateRows([...serviceRows, createEmptyRow()]);
   };
 
   const handleDeleteRow = (id: string) => {
@@ -135,7 +123,7 @@ export const RecordOfServicesRendered: React.FC<RecordOfServicesRenderedProps> =
 
       {/* Instructions Banner */}
       <div className="bg-slate-900/80 border border-slate-800 p-2.5 rounded-lg text-[11px] text-slate-300 space-y-0.5">
-        <p>• <strong>For Oral Prophylaxis, Fluoride Varnish/Gel & Consultation:</strong> Check (✓) if rendered</p>
+        <p>• <strong>For Oral Prophylaxis, Fluoride Varnish/Gel, Consultation & Treatments:</strong> Check (✓) if rendered</p>
         <p>• <strong>For Permanent & Temporary Filling, Pit and Fissure Sealant & Extraction:</strong> Indicate Number / Tooth Code</p>
       </div>
 
@@ -164,10 +152,10 @@ export const RecordOfServicesRendered: React.FC<RecordOfServicesRenderedProps> =
               )}
             </div>
 
-            {/* 2-Column Grid Layout: Label on Left, Field on Right */}
+            {/* 2-Column Grid Layout */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-slate-300">
               
-              {/* Date */}
+              {/* Date Rendered */}
               <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
                 <label className="font-semibold text-slate-400">Date Rendered:</label>
                 <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-700 px-2.5 py-1 rounded w-44">
@@ -277,7 +265,91 @@ export const RecordOfServicesRendered: React.FC<RecordOfServicesRenderedProps> =
                 />
               </div>
 
-              {/* Remarks / Details (Full Width across the 2 columns) */}
+              {/* Gum Treatment */}
+              <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                <label className="font-semibold text-slate-400 cursor-pointer" onClick={() => isEditable && handleFieldChange(row.id, 'gumTreatment', !row.gumTreatment)}>
+                  Gum Treatment:
+                </label>
+                <input
+                  type="checkbox"
+                  disabled={!isEditable}
+                  checked={Boolean(row.gumTreatment)}
+                  onChange={(e) => handleFieldChange(row.id, 'gumTreatment', e.target.checked)}
+                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Post-Operative Treatment */}
+              <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                <label className="font-semibold text-slate-400 cursor-pointer" onClick={() => isEditable && handleFieldChange(row.id, 'postOperativeTreatment', !row.postOperativeTreatment)}>
+                  Post-Operative Treatment:
+                </label>
+                <input
+                  type="checkbox"
+                  disabled={!isEditable}
+                  checked={Boolean(row.postOperativeTreatment)}
+                  onChange={(e) => handleFieldChange(row.id, 'postOperativeTreatment', e.target.checked)}
+                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Oral Abscess Drained / Treated */}
+              <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                <label className="font-semibold text-slate-400 cursor-pointer" onClick={() => isEditable && handleFieldChange(row.id, 'oralAbscessDrained', !row.oralAbscessDrained)}>
+                  Oral Abscess Drained / Treated:
+                </label>
+                <input
+                  type="checkbox"
+                  disabled={!isEditable}
+                  checked={Boolean(row.oralAbscessDrained)}
+                  onChange={(e) => handleFieldChange(row.id, 'oralAbscessDrained', e.target.checked)}
+                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Referred */}
+              <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                <label className="font-semibold text-slate-400 cursor-pointer" onClick={() => isEditable && handleFieldChange(row.id, 'referred', !row.referred)}>
+                  Referred:
+                </label>
+                <input
+                  type="checkbox"
+                  disabled={!isEditable}
+                  checked={Boolean(row.referred)}
+                  onChange={(e) => handleFieldChange(row.id, 'referred', e.target.checked)}
+                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Given Counselling / Education */}
+              <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                <label className="font-semibold text-slate-400 cursor-pointer" onClick={() => isEditable && handleFieldChange(row.id, 'givenCounselling', !row.givenCounselling)}>
+                  Given Counselling / Oral Health Education:
+                </label>
+                <input
+                  type="checkbox"
+                  disabled={!isEditable}
+                  checked={Boolean(row.givenCounselling)}
+                  onChange={(e) => handleFieldChange(row.id, 'givenCounselling', e.target.checked)}
+                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Completed Tooth Brushing Drill (< 5 Y/O) */}
+              <div className="flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
+                <label className="font-semibold text-slate-400 cursor-pointer" onClick={() => isEditable && handleFieldChange(row.id, 'completedToothBrushingDrill', !row.completedToothBrushingDrill)}>
+                  Completed Tooth Brushing Drill (Under 5 Y/O):
+                </label>
+                <input
+                  type="checkbox"
+                  disabled={!isEditable}
+                  checked={Boolean(row.completedToothBrushingDrill)}
+                  onChange={(e) => handleFieldChange(row.id, 'completedToothBrushingDrill', e.target.checked)}
+                  className="w-4 h-4 rounded bg-slate-900 border-slate-700 text-blue-600 focus:ring-0 cursor-pointer"
+                />
+              </div>
+
+              {/* Remarks / Details */}
               <div className="col-span-1 md:col-span-2 flex items-center justify-between gap-2 bg-slate-950 p-2 rounded-lg border border-slate-800">
                 <label className="font-semibold text-slate-400 whitespace-nowrap">Remarks / Details:</label>
                 <input
