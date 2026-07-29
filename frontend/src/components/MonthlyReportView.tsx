@@ -116,15 +116,18 @@ export function MonthlyReportView() {
   
   // State for dynamic indicators
   const [counts, setCounts] = useState({
-    infantMale: 0,
-    infantFemale: 0,
+    preg10to14: 0,
+    preg15to19: 0,
+    preg20to49: 0,
+    pregnantTotal: 0,
+    infantMale: 0, infantFemale: 0,
     // School Age 1-4
     age1Male: 0, age1Female: 0,
     age2Male: 0, age2Female: 0,
     age3Male: 0, age3Female: 0,
     age4Male: 0, age4Female: 0,
     school1to4Male: 0, school1to4Female: 0,
-    // School Age 5-9 Individual & Total Gender Counts
+    // School Age 5-9
     age5Male: 0, age5Female: 0,
     age6Male: 0, age6Female: 0,
     school5to6Male: 0, school5to6Female: 0,
@@ -132,7 +135,16 @@ export function MonthlyReportView() {
     age8Male: 0, age8Female: 0,
     age9Male: 0, age9Female: 0,
     school5to9Male: 0, school5to9Female: 0,
-    school10to14: 0,
+    // Adolescents & Adults
+    adolescentExcept12Male: 0, adolescentExcept12Female: 0,
+    adolescent12Male: 0, adolescent12Female: 0,
+    adolescent15to19Male: 0, adolescent15to19Female: 0,
+    adult20to59Male: 0, adult20to59Female: 0,
+    older60PlusMale: 0, older60PlusFemale: 0,
+    // Totals
+    totalAllAgesMale: 0,
+    totalAllAgesFemale: 0,
+    grandTotal: 0,
   });
 
   // Fetch all saved patient records from EHR database
@@ -190,6 +202,10 @@ export function MonthlyReportView() {
   };
   
   const calculateCounts = (records: any[]) => {
+    let preg10to14 = 0;
+    let preg15to19 = 0;
+    let preg20to49 = 0;
+
     let infantMale = 0, infantFemale = 0;
 
     let age1Male = 0, age1Female = 0;
@@ -203,11 +219,16 @@ export function MonthlyReportView() {
     let age8Male = 0, age8Female = 0;
     let age9Male = 0, age9Female = 0;
 
-    let school10to14 = 0;
+    let adolescentExcept12Male = 0, adolescentExcept12Female = 0;
+    let adolescent12Male = 0, adolescent12Female = 0;
+    let adolescent15to19Male = 0, adolescent15to19Female = 0;
+    let adult20to59Male = 0, adult20to59Female = 0;
+    let older60PlusMale = 0, older60PlusFemale = 0;
 
-    // Reset to 0 if records array is empty
+    // Reset to 0 if no records
     if (!Array.isArray(records) || records.length === 0) {
       setCounts({
+        preg10to14: 0, preg15to19: 0, preg20to49: 0, pregnantTotal: 0,
         infantMale: 0, infantFemale: 0,
         age1Male: 0, age1Female: 0,
         age2Male: 0, age2Female: 0,
@@ -221,13 +242,17 @@ export function MonthlyReportView() {
         age8Male: 0, age8Female: 0,
         age9Male: 0, age9Female: 0,
         school5to9Male: 0, school5to9Female: 0,
-        school10to14: 0,
+        adolescentExcept12Male: 0, adolescentExcept12Female: 0,
+        adolescent12Male: 0, adolescent12Female: 0,
+        adolescent15to19Male: 0, adolescent15to19Female: 0,
+        adult20to59Male: 0, adult20to59Female: 0,
+        older60PlusMale: 0, older60PlusFemale: 0,
+        totalAllAgesMale: 0, totalAllAgesFemale: 0, grandTotal: 0,
       });
       return;
     }
 
     records.forEach((record: any) => {
-      // 1. Unpack Patient Information & Visit Logs
       const patientInfo = typeof record.patient_info === 'string'
         ? parseJsonObject(record.patient_info) || {}
         : (record.patient_info || {});
@@ -255,33 +280,44 @@ export function MonthlyReportView() {
         servicesVisitsCount = 1;
       }
 
-      // 🎯 CONDITION 1: VISIT COUNT (Exactly 1 Visit Entry / Baseline Intake)
+      // CONDITION 1: VISIT COUNT (Baseline Intake)
       const isFirstTimeAttended = dentalVisitsCount <= 1 && servicesVisitsCount <= 1;
       if (!isFirstTimeAttended) return;
 
-      // 🎯 CONDITION 2: VISIT DATE MATCH (Matches Month & Year Dropdowns)[cite: 2]
+      // CONDITION 2: VISIT DATE MATCH
       const dateToVerify = visit1Date || record.created_at || record.createdAt || '';
       const isDateMatching = matchesSelectedMonthAndYear(dateToVerify, month, year);
       if (!isDateMatching) return;
 
-      // 🎯 CONDITION 3: AGE & GENDER PARSING[cite: 2]
+      // CONDITION 3: AGE, GENDER & PREGNANCY PARSING
       const ageVal = patientInfo.age || record.age || '';
       const sexVal = (patientInfo.sex || record.sex || '').toString().trim().toLowerCase();
       const isMale = sexVal === 'm' || sexVal === 'male';
       const isFemale = sexVal === 'f' || sexVal === 'female';
+      const isPregnant = Boolean(patientInfo.is_pregnant || record.is_pregnant || patientInfo.pregnant || record.pregnant);
       const numAgeInYears = parseAgeToYearsNum(ageVal);
 
-      // --- INFANT 0-11 MOS ---[cite: 2]
+      // --- PREGNANT WOMEN ---
+      if (isFemale && isPregnant && numAgeInYears !== null) {
+        const pAge = Math.floor(numAgeInYears);
+        if (pAge >= 10 && pAge <= 14) preg10to14++;
+        else if (pAge >= 15 && pAge <= 19) preg15to19++;
+        else if (pAge >= 20 && pAge <= 49) preg20to49++;
+        return; // Exclude from non-pregnant female columns
+      }
+
+      // --- INFANT 0-11 MOS ---
       if (isInfantAge(ageVal)) {
         if (isMale) infantMale++;
         else if (isFemale) infantFemale++;
         return;
       }
 
-      // --- SCHOOL AGE CHILDREN (1 to 9 Y/O) ---[cite: 2]
+      // --- GENERAL AGE EVALUATION ---
       if (numAgeInYears !== null) {
         const roundedAge = Math.floor(numAgeInYears);
 
+        // Individual Ages 1 to 4
         if (roundedAge === 1) {
           if (isMale) age1Male++; else if (isFemale) age1Female++;
         } else if (roundedAge === 2) {
@@ -290,7 +326,10 @@ export function MonthlyReportView() {
           if (isMale) age3Male++; else if (isFemale) age3Female++;
         } else if (roundedAge === 4) {
           if (isMale) age4Male++; else if (isFemale) age4Female++;
-        } else if (roundedAge === 5) {
+        } 
+        
+        // Individual Ages 5 to 9
+        else if (roundedAge === 5) {
           if (isMale) age5Male++; else if (isFemale) age5Female++;
         } else if (roundedAge === 6) {
           if (isMale) age6Male++; else if (isFemale) age6Female++;
@@ -300,13 +339,36 @@ export function MonthlyReportView() {
           if (isMale) age8Male++; else if (isFemale) age8Female++;
         } else if (roundedAge === 9) {
           if (isMale) age9Male++; else if (isFemale) age9Female++;
-        } else if (roundedAge >= 10 && roundedAge <= 14) {
-          school10to14++;
+        } 
+        
+        // Adolescents 10-14 except 12
+        else if (roundedAge === 10 || roundedAge === 11 || roundedAge === 13 || roundedAge === 14) {
+          if (isMale) adolescentExcept12Male++; else if (isFemale) adolescentExcept12Female++;
+        }
+
+        // Adolescents 12 Y/O
+        else if (roundedAge === 12) {
+          if (isMale) adolescent12Male++; else if (isFemale) adolescent12Female++;
+        }
+
+        // Adolescents 15-19 Y/O
+        else if (roundedAge >= 15 && roundedAge <= 19) {
+          if (isMale) adolescent15to19Male++; else if (isFemale) adolescent15to19Female++;
+        }
+
+        // Adults 20-59 Y/O
+        else if (roundedAge >= 20 && roundedAge <= 59) {
+          if (isMale) adult20to59Male++; else if (isFemale) adult20to59Female++;
+        }
+
+        // Older Persons 60+ Y/O
+        else if (roundedAge >= 60) {
+          if (isMale) older60PlusMale++; else if (isFemale) older60PlusFemale++;
         }
       }
     });
 
-    // Compute Totals directly from individual age counts[cite: 2]
+    // Sub-totals for School Age
     const school1to4Male = age1Male + age2Male + age3Male + age4Male;
     const school1to4Female = age1Female + age2Female + age3Female + age4Female;
 
@@ -316,8 +378,37 @@ export function MonthlyReportView() {
     const school5to9Male = age5Male + age6Male + age7Male + age8Male + age9Male;
     const school5to9Female = age5Female + age6Female + age7Female + age8Female + age9Female;
 
-    // Update state object[cite: 2]
+    // Total Pregnant Women
+    const pregnantTotal = preg10to14 + preg15to19 + preg20to49;
+
+    // TOTAL ALL AGES MALE
+    const totalAllAgesMale = 
+      infantMale + 
+      school1to4Male + 
+      school5to9Male + 
+      adolescentExcept12Male + 
+      adolescent12Male + 
+      adolescent15to19Male + 
+      adult20to59Male + 
+      older60PlusMale;
+
+    // TOTAL ALL AGES FEMALE (Includes Pregnant Women in Total Female)
+    const totalAllAgesFemale = 
+      pregnantTotal + 
+      infantFemale + 
+      school1to4Female + 
+      school5to9Female + 
+      adolescentExcept12Female + 
+      adolescent12Female + 
+      adolescent15to19Female + 
+      adult20to59Female + 
+      older60PlusFemale;
+
+    // GRAND TOTAL
+    const grandTotal = totalAllAgesMale + totalAllAgesFemale;
+
     setCounts({
+      preg10to14, preg15to19, preg20to49, pregnantTotal,
       infantMale, infantFemale,
       age1Male, age1Female,
       age2Male, age2Female,
@@ -331,10 +422,16 @@ export function MonthlyReportView() {
       age8Male, age8Female,
       age9Male, age9Female,
       school5to9Male, school5to9Female,
-      school10to14,
+      adolescentExcept12Male, adolescentExcept12Female,
+      adolescent12Male, adolescent12Female,
+      adolescent15to19Male, adolescent15to19Female,
+      adult20to59Male, adult20to59Female,
+      older60PlusMale, older60PlusFemale,
+      totalAllAgesMale,
+      totalAllAgesFemale,
+      grandTotal,
     });
   };
-  
   
   useEffect(() => {
     fetchReportData();
@@ -515,13 +612,13 @@ export function MonthlyReportView() {
                   School Age Children
                 </th>
                 <th colSpan={2} className="border border-slate-800 p-1 text-center font-bold">
-                  Adolescents 10-14 Y/O except 12 Y/O
+                  Adolescents 10-14 Y/O <br/>except 12 Y/O
                 </th>
                 <th colSpan={2} className="border border-slate-800 p-1 text-center bg-slate-950 font-bold">
-                  Adolescents 12 Y/O
+                  Adolescents 12 <br/>Y/O
                 </th>
                 <th colSpan={2} className="border border-slate-800 p-1 text-center font-bold">
-                  Adolescents 15-19 Y/O except 12 Y/O
+                  Adolescents 15-19 <br/>Y/O
                 </th>
                 <th colSpan={2} className="border border-slate-800 p-1 text-center bg-slate-950 font-bold">
                   Adults 20-59 Y/O
@@ -625,9 +722,9 @@ export function MonthlyReportView() {
                 <td className="p-1 border border-slate-800 text-left font-bold text-slate-100 sticky left-0 bg-slate-900 z-10">NO. OF PERSON ATTENDED</td>
                 
                 {/* Pregnant Women */}
-                <td className="p-1 border border-slate-800">0</td>
-                <td className="p-1 border border-slate-800">0</td>
-                <td className="p-1 border border-slate-800">0</td>
+                <td className="p-1 border border-slate-800">{counts.preg10to14 || 0}</td>
+                <td className="p-1 border border-slate-800">{counts.preg15to19 || 0}</td>
+                <td className="p-1 border border-slate-800">{counts.preg20to49 || 0}</td>
                 
                 {/* DYNAMIC INFANT COUNTS (0-11 mos: M, F) */}
                 <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-blue-950/30">{counts.infantMale || 0}</td>
@@ -682,26 +779,43 @@ export function MonthlyReportView() {
                 <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school5to9Male || 0}</td>
                 <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/30">{counts.school5to9Female || 0}</td>
 
-                {/* Adolescents 10-14 except 12 (M, F) */}
-                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                {/* 🎯 ADOLESCENTS 10-14 EXCEPT 12 (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">
+                  {counts.adolescentExcept12Male || 0}
+                </td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">
+                  {counts.adolescentExcept12Female || 0}
+                </td>
                 
-                {/* Adolescents 12 Y/O (M, F) */}
-                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                {/* 🎯 Adolescents 12 Y/O (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adolescent12Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adolescent12Female || 0}</td>
                 
-                {/* Adolescents 15-19 except 12 (M, F) */}
-                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                {/* 🎯 Adolescents 15-19 Y/O (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adolescent15to19Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adolescent15to19Female || 0}</td>
                 
-                {/* Adults 20-59 (M, F) */}
-                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                {/* 🎯 Adults 20-59 Y/O (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adult20to59Male || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.adult20to59Female || 0}</td>
                 
-                {/* Older Persons 60+ (M, F) */}
-                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                {/* 🎯 Older Persons 60+ Y/O (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.older60PlusMale || 0}</td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-400 bg-slate-900">{counts.older60PlusFemale || 0}</td>
                 
-                {/* TOTAL ALL AGES (M, F) */}
-                <td className="p-1 border border-slate-800">0</td><td className="p-1 border border-slate-800">0</td>
+                {/* 🎯 TOTAL ALL AGES (M, F) */}
+                <td className="p-1 border border-slate-800 font-bold text-blue-300 bg-slate-900">
+                  {counts.totalAllAgesMale || 0}
+                </td>
+                <td className="p-1 border border-slate-800 font-bold text-blue-300 bg-slate-900">
+                  {counts.totalAllAgesFemale || 0}
+                </td>
                 
-                {/* GRAND TOTAL */}
-                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/40">0</td>
+                {/* 🎯 GRAND TOTAL (M + F + Pregnant Women) */}
+                <td className="p-1 border border-slate-800 font-bold text-emerald-400 bg-emerald-950/40">
+                  {counts.grandTotal || 0}
+                </td>
+				
               </tr>
 
               <tr className="bg-slate-900/60 font-semibold">
