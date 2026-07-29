@@ -118,6 +118,16 @@ export function MonthlyReportView() {
     betelNut: createEmptyMatrix(),
   });
 
+  // SECTION C: ORAL HEALTH STATUS INDICATORS
+  const [oralHealth, setOralHealth] = useState({
+    dentalCaries: createEmptyMatrix(),
+    gingivitis: createEmptyMatrix(),
+    periodontalDisease: createEmptyMatrix(),
+    debris: createEmptyMatrix(),
+    calculus: createEmptyMatrix(),
+    dentoFacialAnomalies: createEmptyMatrix(),
+  });
+
   const fetchReportData = async () => {
     setIsLoading(true);
     
@@ -193,22 +203,40 @@ export function MonthlyReportView() {
       betelNut: createEmptyMatrix(),
     };
 
+    const oral = {
+      dentalCaries: createEmptyMatrix(),
+      gingivitis: createEmptyMatrix(),
+      periodontalDisease: createEmptyMatrix(),
+      debris: createEmptyMatrix(),
+      calculus: createEmptyMatrix(),
+      dentoFacialAnomalies: createEmptyMatrix(),
+    };
+
     if (!Array.isArray(records) || records.length === 0) {
       setCounts(attended);
       setExaminedCounts(examined);
       setMedHistory(med);
       setDietaryHistory(diet);
+      setOralHealth(oral);
       return;
     }
 
+    // Enhanced truthy evaluator including Oral Health Summary checkmark '✓'
     const isTrue = (val: any) => {
       if (val === undefined || val === null) return false;
       if (typeof val === 'boolean') return val;
       const s = val.toString().trim().toLowerCase();
-      return s === 'true' || s === 'yes' || s === '1' || s === 'checked';
+      return (
+        s === 'true' ||
+        s === 'yes' ||
+        s === '1' ||
+        s === 'checked' ||
+        s === '✓' ||
+        s === 'present'
+      );
     };
 
-    // Universal multi-key lookup helper
+    // Universal multi-key lookup helper across object hierarchies
     const hasCondition = (rawObj: any, flatRecord: any, ...keys: string[]) => {
       for (const key of keys) {
         if (rawObj && isTrue(rawObj[key])) return true;
@@ -233,6 +261,17 @@ export function MonthlyReportView() {
         const socialHistoryRaw = typeof record.social_history === 'string'
           ? parseJsonObject(record.social_history) || {}
           : (record.social_history || {});
+
+        // Parse Oral Health Condition Summary (Section A Data)
+        const oralSummaryRaw = typeof record.oral_health_condition_summary === 'string'
+          ? parseJsonObject(record.oral_health_condition_summary) || {}
+          : (
+              record.oral_health_condition_summary ||
+              record.section_a_data ||
+              record.sectionAData ||
+              record.oral_summary ||
+              {}
+            );
 
         let dentalVisitsCount = 0;
         let visit1Date = '';
@@ -286,127 +325,186 @@ export function MonthlyReportView() {
           incrementMatrix(examined, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
         }
 
-        // 3. MEDICAL & DIETARY HISTORY
-        if (matchesSelectedMonthAndYear(recordDate, month, year)) {
-          console.log('Processing Record for Report:', { age: ageVal, sex: sexVal, medHistoryRaw, socialHistoryRaw });
+        // Helper to scan Dental Chart markings if Section A summary dropdown wasn't explicitly saved
+        const checkDentalChartMarkings = (type: string): boolean => {
+          if (!dentalChartRaw) return false;
+          const visitsArr = Array.isArray(dentalChartRaw) ? dentalChartRaw : [dentalChartRaw];
 
-          // 🎯 1. Allergies
+          for (const v of visitsArr) {
+            if (!v) continue;
+            const chartData = v.chartData || v.teeth || {};
+            if (typeof chartData === 'object') {
+              for (const code of Object.values(chartData)) {
+                if (typeof code === 'string') {
+                  const upperCode = code.toUpperCase().trim();
+                  if (type === 'caries') {
+                    if (
+                      upperCode.includes('C') ||
+                      upperCode.includes('D') ||
+                      upperCode.includes('/') ||
+                      upperCode.includes('CARIES')
+                    ) return true;
+                  }
+                }
+              }
+            }
+          }
+          return false;
+        };
+
+        // 🎯 SECTION A, B & C AGGREGATION (FILTERED BY MONTH & YEAR)
+        if (matchesSelectedMonthAndYear(recordDate, month, year)) {
+
+          // SECTION A: MEDICAL HISTORY
           if (hasCondition(medHistoryRaw, record, 'allergies_checked', 'allergiesChecked', 'allergies', 'allergies_specified')) {
             incrementMatrix(med.allergies, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 2. Hypertension / CVA
           if (hasCondition(medHistoryRaw, record, 'hypertension_cva', 'hypertensionCva', 'hypertension', 'cva')) {
             incrementMatrix(med.hypertension, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 3. Diabetes Mellitus
           if (hasCondition(medHistoryRaw, record, 'diabetes_mellitus', 'diabetesMellitus', 'diabetes')) {
             incrementMatrix(med.diabetes, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 4. Blood Disorder
           if (hasCondition(medHistoryRaw, record, 'blood_disorder', 'bloodDisorder', 'blood_disorders', 'bloodDisorders')) {
             incrementMatrix(med.bloodDisorder, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 5. Cardiovascular / Heart Disease
           if (hasCondition(medHistoryRaw, record, 'cardiovascular_heart_diseases', 'cardiovascularHeartDiseases', 'cardiovascular', 'heart_disease')) {
             incrementMatrix(med.cardiovascular, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 6. Thyroid Disorders
           if (hasCondition(medHistoryRaw, record, 'thyroid_disorders', 'thyroidDisorders', 'thyroid')) {
             incrementMatrix(med.thyroid, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 7. Hepatitis
           if (hasCondition(medHistoryRaw, record, 'hepatitis_checked', 'hepatitisChecked', 'hepatitis', 'hepatitis_specified')) {
             incrementMatrix(med.hepatitis, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 8. Malignancy
           if (hasCondition(medHistoryRaw, record, 'malignancy_checked', 'malignancyChecked', 'malignancy', 'malignancy_specified')) {
             incrementMatrix(med.malignancy, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 9. History of Hospitalization
           if (hasCondition(medHistoryRaw, record, 'medical_hospitalization_checked', 'medicalHospitalizationChecked', 'medical_hospitalization_specified', 'surgical_checked', 'surgicalChecked', 'last_admission')) {
             incrementMatrix(med.hospitalization, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 10. Blood Transfusion
           if (hasCondition(medHistoryRaw, record, 'blood_transfusion_checked', 'bloodTransfusionChecked', 'blood_transfusion_specified', 'blood_transfusion')) {
             incrementMatrix(med.transfusion, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 11. Tattoo
           if (hasCondition(medHistoryRaw, record, 'tattoo_checked', 'tattooChecked', 'tattoo_specified', 'tattoo')) {
             incrementMatrix(med.tattoo, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 🎯 SECTION B: DIETARY & SOCIAL HISTORY
-          // 1. Sugar Sweetened Beverage / Food
-          if (
-            hasCondition(
-              socialHistoryRaw,
-              record,
-              'sugar_beverages_checked',
-              'sugarBeveragesChecked',
-              'sugar_beverages_specified',
-              'sugarBeveragesSpecified',
-              'sugar_beverage',
-              'sugarBeverage'
-            )
-          ) {
+          // SECTION B: DIETARY & SOCIAL HISTORY
+          if (hasCondition(socialHistoryRaw, record, 'sugar_beverages_checked', 'sugarBeveragesChecked', 'sugar_beverages_specified', 'sugarBeveragesSpecified', 'sugar_beverage')) {
             incrementMatrix(diet.sweetenedBeverage, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 2. Alcohol Drinker
-          if (
-            hasCondition(
-              socialHistoryRaw,
-              record,
-              'use_alcohol_checked',
-              'useAlcoholChecked',
-              'use_alcohol_specified',
-              'useAlcoholSpecified',
-              'alcohol'
-            )
-          ) {
+          if (hasCondition(socialHistoryRaw, record, 'use_alcohol_checked', 'useAlcoholChecked', 'use_alcohol_specified', 'useAlcoholSpecified', 'alcohol')) {
             incrementMatrix(diet.alcohol, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 3. Tobacco User
-          if (
-            hasCondition(
-              socialHistoryRaw,
-              record,
-              'use_tobacco_checked',
-              'useTobaccoChecked',
-              'use_tobacco_specified',
-              'useTobaccoSpecified',
-              'tobacco'
-            )
-          ) {
+          if (hasCondition(socialHistoryRaw, record, 'use_tobacco_checked', 'useTobaccoChecked', 'use_tobacco_specified', 'useTobaccoSpecified', 'tobacco')) {
             incrementMatrix(diet.tobacco, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // 4. Betel Nut Chewer
-          if (
-            hasCondition(
-              socialHistoryRaw,
-              record,
-              'betel_nut_checked',
-              'betelNutChecked',
-              'betel_nut_specified',
-              'betelNutSpecified',
-              'betel_nut',
-              'betelNut'
-            )
-          ) {
+          if (hasCondition(socialHistoryRaw, record, 'betel_nut_checked', 'betelNutChecked', 'betel_nut_specified', 'betelNutSpecified', 'betel_nut')) {
             incrementMatrix(diet.betelNut, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
+
+          // 🎯 SECTION C: ORAL HEALTH STATUS (STRICTLY BOUND TO OralHealthConditionSummary SECTION A)
+			if (matchesSelectedMonthAndYear(recordDate, month, year)) {
+
+			  // 1. Dental Caries
+			  if (
+				hasCondition(
+				  oralSummaryRaw,
+				  record,
+				  'oh_dental_caries',
+				  'dentalCaries',
+				  'dental_caries',
+				  'caries'
+				)
+			  ) {
+				incrementMatrix(oral.dentalCaries, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+			  }
+
+			  // 2. Gingivitis
+			  if (
+				hasCondition(
+				  oralSummaryRaw,
+				  record,
+				  'oh_gingivitis',
+				  'gingivitis',
+				  'has_gingivitis'
+				)
+			  ) {
+				incrementMatrix(oral.gingivitis, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+			  }
+
+			  // 3. Periodontal Disease
+			  if (
+				hasCondition(
+				  oralSummaryRaw,
+				  record,
+				  'oh_periodontal_disease',
+				  'periodontalDisease',
+				  'periodontal_disease'
+				)
+			  ) {
+				incrementMatrix(oral.periodontalDisease, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+			  }
+
+			  // 4. Oral Debris
+			  if (
+				hasCondition(
+				  oralSummaryRaw,
+				  record,
+				  'oh_debris',
+				  'debris',
+				  'oral_debris',
+				  'oralDebris'
+				)
+			  ) {
+				incrementMatrix(oral.debris, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+			  }
+
+			  // 5. Calculus
+			  if (
+				hasCondition(
+				  oralSummaryRaw,
+				  record,
+				  'oh_calculus',
+				  'calculus',
+				  'has_calculus'
+				)
+			  ) {
+				incrementMatrix(oral.calculus, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+			  }
+
+			  // 6. Dento-Facial Anomalies (Cleft Lip / Palate)
+			  if (
+				hasCondition(
+				  oralSummaryRaw,
+				  record,
+				  'oh_cleft_lip_palate',
+				  'cleftLipPalate',
+				  'cleft_lip_palate',
+				  'cleftLip',
+				  'cleftPalate',
+				  'oh_abnormal_growth',
+				  'abnormalGrowth'
+				)
+			  ) {
+				incrementMatrix(oral.dentoFacialAnomalies, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+			  }
+			}
+		
         }
       } catch (e) {
         console.error('Error processing record:', e, record);
@@ -417,11 +515,13 @@ export function MonthlyReportView() {
     finalizeMatrixTotals(examined);
     Object.values(med).forEach(finalizeMatrixTotals);
     Object.values(diet).forEach(finalizeMatrixTotals);
+    Object.values(oral).forEach(finalizeMatrixTotals);
 
     setCounts(attended);
     setExaminedCounts(examined);
     setMedHistory(med);
     setDietaryHistory(diet);
+    setOralHealth(oral);
   };
   
   useEffect(() => {
@@ -716,13 +816,13 @@ export function MonthlyReportView() {
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
                 <td colSpan={43} className="p-1 border border-slate-800 uppercase">C. ORAL HEALTH STATUS</td>
               </tr>
+              <MatrixRow label="1. Total No. with Dental Caries" m={oralHealth.dentalCaries} />
+              <MatrixRow label="2. Total No. with Gingivitis" m={oralHealth.gingivitis} />
+              <MatrixRow label="3. Total No. with Periodontal Disease" m={oralHealth.periodontalDisease} />
+              <MatrixRow label="4. Total No. with Oral Debris" m={oralHealth.debris} />
+              <MatrixRow label="5. Total No. with Calculus" m={oralHealth.calculus} />
+              <MatrixRow label="6. Total No. with Dento-Facial Anomalies (cleft lip/palate, etc.)" m={oralHealth.dentoFacialAnomalies} />
               {[
-                "1. Total No. with Dental Caries",
-                "2. Total No. with Gingivitis",
-                "3. Total No. with Periodontal Disease",
-                "4. Total No. with Oral Debris",
-                "5. Total No. with Calculus",
-                "6. Total No. with Dento-Facial Anomalies (cleft lip/palate, etc.)",
                 "7. Total (df) T",
                 "  a. Total decayed (d)",
                 "  b. Total filled (f)",
