@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BarChart3, Printer, RefreshCw } from 'lucide-react';
+import { BarChart3, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import axios from 'axios';
 
 import { createEmptyMatrix } from '../utils/reportTypes';
@@ -873,6 +873,63 @@ export function MonthlyReportView() {
   const handlePrint = () => {
     window.print();
   };
+  
+  const handleExportExcel = () => {
+    // Locate the reporting table DOM element
+    const tableElement = document.querySelector('table');
+    if (!tableElement) {
+      alert('Report table not found.');
+      return;
+    }
+
+    // Wrap the table HTML in Excel-compliant HTML/XML structure with standard UTF-8 encoding
+    const htmlContent = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="utf-8" />
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Monthly Oral Health Report</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px; }
+            th, td { border: 1px solid #333333; padding: 4px; text-align: center; }
+            th { background-color: #0f172a; color: #ffffff; font-weight: bold; }
+            .section-header { background-color: #020617; color: #38bdf8; font-weight: bold; text-align: left; }
+          </style>
+        </head>
+        <body>
+          <h2>CONSOLIDATED ORAL HEALTH STATUS, SERVICES AND MEDICAL HISTORY MONTHLY REPORTING</h2>
+          <p><b>Facility:</b> ${facility} | <b>Location:</b> ${municipality} | <b>Period:</b> ${month} ${quarter} QTR ${year}</p>
+          ${tableElement.outerHTML}
+        </body>
+      </html>
+    `;
+
+    // Create a Blob with Excel MIME type
+    const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create download link and trigger
+    const link = document.createElement('a');
+    link.href = url;
+    const sanitizedFacility = facility.replace(/[^a-zA-Z0-9]/g, '_');
+    link.download = `Monthly_Report_${sanitizedFacility}_${month}_${year}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
 	
   return (
     <div className="space-y-6">
@@ -930,13 +987,16 @@ export function MonthlyReportView() {
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
-
-            <button
-              onClick={handlePrint}
-              className="bg-blue-600 hover:bg-blue-500 text-white font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition"
+			
+			<button
+              onClick={handleExportExcel}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-sm"
+              title="Export to Excel Spreadsheet"
             >
-              <Printer className="w-4 h-4" /> Print / Export PDF
+              <FileSpreadsheet className="w-4 h-4" /> Export Excel
             </button>
+
+            
           </div>
         </div>
       </div>
