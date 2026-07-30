@@ -231,6 +231,24 @@ export function MonthlyReportView() {
     permFilled: createEmptyMatrix(),
   });
 
+  // SECTION D: SERVICES RENDERED INDICATORS
+  const [servicesRenderedCounts, setServicesRenderedCounts] = useState({
+    opScaling: createEmptyMatrix(),
+    permFillings: createEmptyMatrix(),
+    tempFillings: createEmptyMatrix(),
+    extraction: createEmptyMatrix(),
+    gumTreatment: createEmptyMatrix(),
+    sealant: createEmptyMatrix(),
+    completedFluoride: createEmptyMatrix(),
+    sdfFluoride: createEmptyMatrix(),
+    postOpTreatment: createEmptyMatrix(),
+    abscessTreated: createEmptyMatrix(),
+    otherServices: createEmptyMatrix(),
+    referred: createEmptyMatrix(),
+    counselling: createEmptyMatrix(),
+    toothBrushingDrill: createEmptyMatrix(),
+  });
+
   const fetchReportData = async () => {
     setIsLoading(true);
     
@@ -325,6 +343,23 @@ export function MonthlyReportView() {
       permFilled: createEmptyMatrix(),
     };
 
+    const serv = {
+      opScaling: createEmptyMatrix(),
+      permFillings: createEmptyMatrix(),
+      tempFillings: createEmptyMatrix(),
+      extraction: createEmptyMatrix(),
+      gumTreatment: createEmptyMatrix(),
+      sealant: createEmptyMatrix(),
+      completedFluoride: createEmptyMatrix(),
+      sdfFluoride: createEmptyMatrix(),
+      postOpTreatment: createEmptyMatrix(),
+      abscessTreated: createEmptyMatrix(),
+      otherServices: createEmptyMatrix(),
+      referred: createEmptyMatrix(),
+      counselling: createEmptyMatrix(),
+      toothBrushingDrill: createEmptyMatrix(),
+    };
+
     if (!Array.isArray(records) || records.length === 0) {
       setCounts(attended);
       setExaminedCounts(examined);
@@ -332,6 +367,7 @@ export function MonthlyReportView() {
       setDietaryHistory(diet);
       setOralHealth(oral);
       setDmfDfCounts(dmfDf);
+      setServicesRenderedCounts(serv);
       return;
     }
 
@@ -355,6 +391,36 @@ export function MonthlyReportView() {
         if (flatRecord && isTrue(flatRecord[key])) return true;
       }
       return false;
+    };
+
+    // Helper to get the clean manual date, prioritizing manual MM/DD/YYYY over system timestamps
+    const extractManualDate = (logObj: any): string => {
+      if (!logObj) return '';
+      const candidates = [
+        logObj.recordEntryDate,
+        logObj.record_entry_date,
+        logObj.entryDate,
+        logObj.visitDate,
+        logObj.date,
+      ];
+
+      for (const cand of candidates) {
+        if (!cand) continue;
+        const str = cand.toString().trim();
+        // Priority 1: Exact MM/DD/YYYY format (e.g. 01/20/2026)
+        if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
+          return str;
+        }
+      }
+
+      // Priority 2: Standard date strings (strip trailing time components if present)
+      for (const cand of candidates) {
+        if (!cand) continue;
+        const str = cand.toString().trim().split(',')[0].split('T')[0];
+        if (str && str !== 'N/A') return str;
+      }
+
+      return '';
     };
 
     records.forEach((record: any) => {
@@ -384,32 +450,9 @@ export function MonthlyReportView() {
               {}
             );
 
-        let dentalVisitsCount = 0;
-        let visit1Date = '';
-
-        if (Array.isArray(dentalChartRaw)) {
-          dentalVisitsCount = dentalChartRaw.length;
-          if (dentalChartRaw.length > 0) {
-            visit1Date = dentalChartRaw[0].visitDate || dentalChartRaw[0].date || '';
-          }
-        } else if (dentalChartRaw && typeof dentalChartRaw === 'object') {
-          dentalVisitsCount = 1;
-          visit1Date = dentalChartRaw.visitDate || dentalChartRaw.date || '';
-        }
-
-        let servicesVisitsCount = 0;
-        let serviceDate = '';
-
-        if (Array.isArray(servicesMonRaw)) {
-          servicesVisitsCount = servicesMonRaw.length;
-          if (servicesMonRaw.length > 0) {
-            const lastEntry = servicesMonRaw[servicesMonRaw.length - 1];
-            serviceDate = lastEntry?.date || lastEntry?.visitDate || servicesMonRaw[0]?.date || servicesMonRaw[0]?.visitDate || '';
-          }
-        } else if (servicesMonRaw && typeof servicesMonRaw === 'object' && Object.keys(servicesMonRaw).length > 0) {
-          servicesVisitsCount = 1;
-          serviceDate = servicesMonRaw.date || servicesMonRaw.visitDate || '';
-        }
+        const servicesRenderedRaw = typeof record.record_of_services_rendered === 'string'
+          ? parseJsonObject(record.record_of_services_rendered) || []
+          : (record.record_of_services_rendered || []);
 
         const ageVal = patientInfo.age || record.age || '';
         const sexVal = (patientInfo.sex || record.sex || '').toString().trim().toLowerCase();
@@ -418,144 +461,216 @@ export function MonthlyReportView() {
         const isPregnant = Boolean(patientInfo.is_pregnant || record.is_pregnant || patientInfo.pregnant || record.pregnant);
         const numAgeInYears = parseAgeToYearsNum(ageVal);
 
-        const recordDate = record.created_at || record.createdAt || record.date || visit1Date || serviceDate || '';
+        // -------------------------------------------------------------
+        // 1. DENTAL CHART VISITS & SECTION A, B, C ATTENDANCE
+        // -------------------------------------------------------------
+        const visitsArr = Array.isArray(dentalChartRaw)
+          ? dentalChartRaw
+          : dentalChartRaw && typeof dentalChartRaw === 'object'
+          ? [dentalChartRaw]
+          : [];
 
-        // 1. ATTENDED LOGIC
-        const isFirstTimeAttended = dentalVisitsCount <= 1 && servicesVisitsCount <= 1;
-        const dateToVerifyAttended = visit1Date || recordDate;
+        let recordHasMatchingClinicalVisit = false;
 
-        if (isFirstTimeAttended && matchesSelectedMonthAndYear(dateToVerifyAttended, month, year)) {
+        visitsArr.forEach((visitLog: any) => {
+          if (!visitLog) return;
+          const visitDateStr = extractManualDate(visitLog);
+
+          if (visitDateStr && matchesSelectedMonthAndYear(visitDateStr, month, year)) {
+            recordHasMatchingClinicalVisit = true;
+
+            // Compute DMF / df teeth counts for this matching visit
+            let rawVisitData = visitLog.chartData !== undefined ? visitLog.chartData : (visitLog.teeth !== undefined ? visitLog.teeth : visitLog);
+            if (typeof rawVisitData === 'string') {
+              rawVisitData = parseJsonObject(rawVisitData) || {};
+            }
+
+            const chartData: Record<string, string> = typeof rawVisitData === 'object' && rawVisitData !== null ? rawVisitData : {};
+            const dCounts = calculateDentalCounts(chartData);
+
+            // 7. Total (df) T
+            addValueToMatrix(dmfDf.totalDf, dCounts.totalDF, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+            addValueToMatrix(dmfDf.tempDecayed, dCounts.tempDecayed, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+            addValueToMatrix(dmfDf.tempFilled, dCounts.tempFilled, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+
+            // 8. Total (DMF) T
+            addValueToMatrix(dmfDf.totalDmf, dCounts.totalDMF, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+            addValueToMatrix(dmfDf.permDecayed, dCounts.permDecayed, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+            addValueToMatrix(dmfDf.permMissing, dCounts.permMissing, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+            addValueToMatrix(dmfDf.permFilled, dCounts.permFilled, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+        });
+
+        // -------------------------------------------------------------
+        // 2. SERVICES RENDERED LOGS
+        // -------------------------------------------------------------
+        const servRows = Array.isArray(servicesRenderedRaw)
+          ? servicesRenderedRaw
+          : servicesRenderedRaw && typeof servicesRenderedRaw === 'object'
+          ? [servicesRenderedRaw]
+          : [];
+
+        const dateMatchedServRows = servRows.filter((r: any) => {
+          if (!r) return false;
+          const rowDateStr = extractManualDate(r);
+          return rowDateStr && matchesSelectedMonthAndYear(rowDateStr, month, year);
+        });
+
+        const hasServiceChecked = (...keys: string[]) => {
+          return dateMatchedServRows.some((r) => keys.some((k) => isTrue(r[k])));
+        };
+
+        const hasServiceValue = (...keys: string[]) => {
+          return dateMatchedServRows.some((r) =>
+            keys.some((k) => r[k] !== undefined && r[k] !== null && r[k].toString().trim() !== '')
+          );
+        };
+
+        if (dateMatchedServRows.length > 0) {
+          recordHasMatchingClinicalVisit = true;
+
+          if (hasServiceChecked('oralProphylaxis', 'oral_prophylaxis', 'op')) {
+            incrementMatrix(serv.opScaling, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceValue('permanentFilling', 'permanent_filling')) {
+            incrementMatrix(serv.permFillings, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceValue('temporaryFilling', 'temporary_filling')) {
+            incrementMatrix(serv.tempFillings, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceValue('extraction')) {
+            incrementMatrix(serv.extraction, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceChecked('gumTreatment', 'gum_treatment')) {
+            incrementMatrix(serv.gumTreatment, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceValue('pitAndFissureSealant', 'pit_and_fissure_sealant', 'sealant')) {
+            incrementMatrix(serv.sealant, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceChecked('fluorideVarnishGel', 'fluoride_varnish_gel', 'silverDiamineFluoride')) {
+            incrementMatrix(serv.sdfFluoride, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceChecked('postOperativeTreatment', 'post_operative_treatment')) {
+            incrementMatrix(serv.postOpTreatment, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceChecked('oralAbscessDrained', 'oral_abscess_drained')) {
+            incrementMatrix(serv.abscessTreated, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceValue('remarks', 'details')) {
+            incrementMatrix(serv.otherServices, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceChecked('referred')) {
+            incrementMatrix(serv.referred, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceChecked('givenCounselling', 'given_counselling')) {
+            incrementMatrix(serv.counselling, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+          if (hasServiceChecked('completedToothBrushingDrill', 'completed_tooth_brushing_drill')) {
+            incrementMatrix(serv.toothBrushingDrill, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+        }
+
+        // Services Monitoring Chart Completed Fluoride Check
+        const servMonArr = Array.isArray(servicesMonRaw)
+          ? servicesMonRaw
+          : servicesMonRaw && typeof servicesMonRaw === 'object'
+          ? [servicesMonRaw]
+          : [];
+
+        const hasCompletedFluorideDateMatched = servMonArr.some((s) => {
+          if (!s) return false;
+          const sDate = extractManualDate(s);
+          return (
+            sDate &&
+            matchesSelectedMonthAndYear(sDate, month, year) &&
+            s.fluorideStatus &&
+            s.fluorideStatus.toString().trim().toLowerCase() === 'completed'
+          );
+        });
+
+        if (hasCompletedFluorideDateMatched) {
+          recordHasMatchingClinicalVisit = true;
+          incrementMatrix(serv.completedFluoride, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+        }
+
+        // -------------------------------------------------------------
+        // 3. ATTENDED / EXAMINED / MEDICAL HISTORY / DIETARY HISTORY / SUMMARY
+        // (ONLY INCREMENT IF A MATCHING CLINICAL VISIT LOG WAS FOUND FOR THIS MONTH)
+        // -------------------------------------------------------------
+        if (recordHasMatchingClinicalVisit) {
           incrementMatrix(attended, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-        }
-
-        // 2. EXAMINED LOGIC
-        const hasServicesExamined = servicesVisitsCount >= 1 || dentalVisitsCount >= 1;
-        const dateToVerifyExamined = serviceDate || dateToVerifyAttended;
-
-        if (hasServicesExamined && matchesSelectedMonthAndYear(dateToVerifyExamined, month, year)) {
           incrementMatrix(examined, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-        }
 
-        // 🎯 SECTION A, B & C AGGREGATION (FILTERED BY MONTH & YEAR)
-        if (matchesSelectedMonthAndYear(recordDate, month, year)) {
-
-          // SECTION A: MEDICAL HISTORY
+          // Medical History
           if (hasCondition(medHistoryRaw, record, 'allergies_checked', 'allergiesChecked', 'allergies', 'allergies_specified')) {
             incrementMatrix(med.allergies, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(medHistoryRaw, record, 'hypertension_cva', 'hypertensionCva', 'hypertension', 'cva')) {
             incrementMatrix(med.hypertension, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(medHistoryRaw, record, 'diabetes_mellitus', 'diabetesMellitus', 'diabetes')) {
             incrementMatrix(med.diabetes, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(medHistoryRaw, record, 'blood_disorder', 'bloodDisorder', 'blood_disorders', 'bloodDisorders')) {
             incrementMatrix(med.bloodDisorder, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(medHistoryRaw, record, 'cardiovascular_heart_diseases', 'cardiovascularHeartDiseases', 'cardiovascular', 'heart_disease')) {
             incrementMatrix(med.cardiovascular, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(medHistoryRaw, record, 'thyroid_disorders', 'thyroidDisorders', 'thyroid')) {
             incrementMatrix(med.thyroid, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(medHistoryRaw, record, 'hepatitis_checked', 'hepatitisChecked', 'hepatitis', 'hepatitis_specified')) {
             incrementMatrix(med.hepatitis, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(medHistoryRaw, record, 'malignancy_checked', 'malignancyChecked', 'malignancy', 'malignancy_specified')) {
             incrementMatrix(med.malignancy, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(medHistoryRaw, record, 'medical_hospitalization_checked', 'medicalHospitalizationChecked', 'medical_hospitalization_specified', 'surgical_checked', 'surgicalChecked', 'last_admission')) {
             incrementMatrix(med.hospitalization, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(medHistoryRaw, record, 'blood_transfusion_checked', 'bloodTransfusionChecked', 'blood_transfusion_specified', 'blood_transfusion')) {
             incrementMatrix(med.transfusion, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(medHistoryRaw, record, 'tattoo_checked', 'tattooChecked', 'tattoo_specified', 'tattoo')) {
             incrementMatrix(med.tattoo, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // SECTION B: DIETARY & SOCIAL HISTORY
+          // Dietary / Social History
           if (hasCondition(socialHistoryRaw, record, 'sugar_beverages_checked', 'sugarBeveragesChecked', 'sugar_beverages_specified', 'sugarBeveragesSpecified', 'sugar_beverage')) {
             incrementMatrix(diet.sweetenedBeverage, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(socialHistoryRaw, record, 'use_alcohol_checked', 'useAlcoholChecked', 'use_alcohol_specified', 'useAlcoholSpecified', 'alcohol')) {
             incrementMatrix(diet.alcohol, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(socialHistoryRaw, record, 'use_tobacco_checked', 'useTobaccoChecked', 'use_tobacco_specified', 'useTobaccoSpecified', 'tobacco')) {
             incrementMatrix(diet.tobacco, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(socialHistoryRaw, record, 'betel_nut_checked', 'betelNutChecked', 'betel_nut_specified', 'betelNutSpecified', 'betel_nut')) {
             incrementMatrix(diet.betelNut, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // SECTION C: ORAL HEALTH STATUS (ITEMS 1 to 6)
+          // Section C Oral Health Summary
           if (hasCondition(oralSummaryRaw, record, 'oh_dental_caries', 'dentalCaries', 'dental_caries', 'caries')) {
             incrementMatrix(oral.dentalCaries, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(oralSummaryRaw, record, 'oh_gingivitis', 'gingivitis', 'has_gingivitis')) {
             incrementMatrix(oral.gingivitis, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(oralSummaryRaw, record, 'oh_periodontal_disease', 'periodontalDisease', 'periodontal_disease')) {
             incrementMatrix(oral.periodontalDisease, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(oralSummaryRaw, record, 'oh_debris', 'debris', 'oral_debris', 'oralDebris')) {
             incrementMatrix(oral.debris, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(oralSummaryRaw, record, 'oh_calculus', 'calculus', 'has_calculus')) {
             incrementMatrix(oral.calculus, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
           if (hasCondition(oralSummaryRaw, record, 'oh_cleft_lip_palate', 'cleftLipPalate', 'cleft_lip_palate', 'cleftLip', 'cleftPalate', 'oh_abnormal_growth', 'abnormalGrowth')) {
             incrementMatrix(oral.dentoFacialAnomalies, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
-
-          // 🎯 SECTION C (ITEMS 7 & 8): ROBUST CHARTS DATA EXTRACTION & DENTAL COUNTS SUMMATION
-          let chartData: Record<string, string> = {};
-          
-          if (Array.isArray(dentalChartRaw) && dentalChartRaw.length > 0) {
-            const rawVisitData = dentalChartRaw[0]?.chartData;
-            chartData = typeof rawVisitData === 'string' ? parseJsonObject(rawVisitData) || {} : (rawVisitData || {});
-          } else if (dentalChartRaw && typeof dentalChartRaw === 'object') {
-            const rawVisitData = dentalChartRaw.chartData || dentalChartRaw;
-            chartData = typeof rawVisitData === 'string' ? parseJsonObject(rawVisitData) || {} : (rawVisitData || {});
-          }
-
-          const dCounts = calculateDentalCounts(chartData);
-
-          // 7. Total (df) T
-          addValueToMatrix(dmfDf.totalDf, dCounts.totalDF, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-          // a. Total decayed (d)
-          addValueToMatrix(dmfDf.tempDecayed, dCounts.tempDecayed, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-          // b. Total filled (f)
-          addValueToMatrix(dmfDf.tempFilled, dCounts.tempFilled, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-
-          // 8. Total (DMF) T
-          addValueToMatrix(dmfDf.totalDmf, dCounts.totalDMF, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-          // a. Total Decayed (D)
-          addValueToMatrix(dmfDf.permDecayed, dCounts.permDecayed, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-          // b. Total Missing (M)
-          addValueToMatrix(dmfDf.permMissing, dCounts.permMissing, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-          // c. Total Filled (F)
-          addValueToMatrix(dmfDf.permFilled, dCounts.permFilled, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-
         }
+
       } catch (e) {
         console.error('Error processing record:', e, record);
       }
@@ -567,6 +682,7 @@ export function MonthlyReportView() {
     Object.values(diet).forEach(finalizeMatrixTotals);
     Object.values(oral).forEach(finalizeMatrixTotals);
     Object.values(dmfDf).forEach(finalizeMatrixTotals);
+    Object.values(serv).forEach(finalizeMatrixTotals);
 
     setCounts(attended);
     setExaminedCounts(examined);
@@ -574,6 +690,7 @@ export function MonthlyReportView() {
     setDietaryHistory(diet);
     setOralHealth(oral);
     setDmfDfCounts(dmfDf);
+    setServicesRenderedCounts(serv);
   };
   
   useEffect(() => {
@@ -890,29 +1007,20 @@ export function MonthlyReportView() {
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
                 <td colSpan={43} className="p-1 border border-slate-800 uppercase">D. SERVICES RENDERED</td>
               </tr>
-              {[
-                "1. No. Given OP / Scaling",
-                "2. No. Given Permanent Fillings",
-                "3. No. Given Temporary Fillings",
-                "4. No. Given Extraction",
-                "5. No. Given Gum Treatment",
-                "6. No. Given Sealant",
-                "7. No. Completed Fluoride Therapy",
-                "8. No. Given Silver Diamine Fluoride",
-                "9. No. Given Post-Operative Treatment",
-                "10. No. of Patient with Oral Abscess Treated",
-                "11. No. Given Other Services",
-                "12. No. of Referred",
-                "13. No. Given Counselling / Education on Tobacco, Oral Health",
-                "14. No. Under 5 Children Completed Tooth Brushing Drill"
-              ].map((item, idx) => (
-                <tr key={`serv-${idx}`} className="hover:bg-slate-900/40">
-                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
-                  {Array.from({ length: 42 }).map((_, i) => (
-                    <td key={`serv-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
-                  ))}
-                </tr>
-              ))}
+              <MatrixRow label="1. No. Given OP / Scaling" m={servicesRenderedCounts.opScaling} />
+              <MatrixRow label="2. No. Given Permanent Fillings" m={servicesRenderedCounts.permFillings} />
+              <MatrixRow label="3. No. Given Temporary Fillings" m={servicesRenderedCounts.tempFillings} />
+              <MatrixRow label="4. No. Given Extraction" m={servicesRenderedCounts.extraction} />
+              <MatrixRow label="5. No. Given Gum Treatment" m={servicesRenderedCounts.gumTreatment} />
+              <MatrixRow label="6. No. Given Sealant" m={servicesRenderedCounts.sealant} />
+              <MatrixRow label="7. No. Completed Fluoride Therapy" m={servicesRenderedCounts.completedFluoride} />
+              <MatrixRow label="8. No. Given Silver Diamine Fluoride" m={servicesRenderedCounts.sdfFluoride} />
+              <MatrixRow label="9. No. Given Post-Operative Treatment" m={servicesRenderedCounts.postOpTreatment} />
+              <MatrixRow label="10. No. of Patient with Oral Abscess Treated" m={servicesRenderedCounts.abscessTreated} />
+              <MatrixRow label="11. No. Given Other Services" m={servicesRenderedCounts.otherServices} />
+              <MatrixRow label="12. No. of Referred" m={servicesRenderedCounts.referred} />
+              <MatrixRow label="13. No. Given Counselling / Education on Tobacco, Oral Health" m={servicesRenderedCounts.counselling} />
+              <MatrixRow label="14. No. Under 5 Children Completed Tooth Brushing Drill" m={servicesRenderedCounts.toothBrushingDrill} />
 
               {/* SECTION E: OFC STATUS */}
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
