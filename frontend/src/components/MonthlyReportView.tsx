@@ -32,7 +32,7 @@ const addValueToMatrix = (
 ) => {
   if (!valToAdd || valToAdd <= 0) return;
 
-  // Pregnant Women
+  // 🎯 PREGNANT WOMEN AGE BRACKETS
   if (isPregnant && isFemale) {
     if (numAgeInYears >= 10 && numAgeInYears <= 14) m.preg10to14 = (m.preg10to14 || 0) + valToAdd;
     else if (numAgeInYears >= 15 && numAgeInYears <= 19) m.preg15to19 = (m.preg15to19 || 0) + valToAdd;
@@ -463,12 +463,12 @@ export function MonthlyReportView() {
           ? parseJsonObject(record.patient_info) || {}
           : (record.patient_info || {});
 
-        const dentalChartRaw = parseJsonObject(record.dental_chart);
-        const servicesMonRaw = parseJsonObject(record.services_monitoring);
-
         const medHistoryRaw = typeof record.medical_history === 'string'
           ? parseJsonObject(record.medical_history) || {}
           : (record.medical_history || {});
+
+        const dentalChartRaw = parseJsonObject(record.dental_chart);
+        const servicesMonRaw = parseJsonObject(record.services_monitoring);
 
         const socialHistoryRaw = typeof record.social_history === 'string'
           ? parseJsonObject(record.social_history) || {}
@@ -476,13 +476,7 @@ export function MonthlyReportView() {
 
         const oralSummaryRaw = typeof record.oral_health_condition_summary === 'string'
           ? parseJsonObject(record.oral_health_condition_summary) || {}
-          : (
-              record.oral_health_condition_summary ||
-              record.section_a_data ||
-              record.sectionAData ||
-              record.oral_summary ||
-              {}
-            );
+          : (record.oral_health_condition_summary || {});
 
         const servicesRenderedRaw = typeof record.record_of_services_rendered === 'string'
           ? parseJsonObject(record.record_of_services_rendered) || []
@@ -494,13 +488,40 @@ export function MonthlyReportView() {
 
         const isNHTS = isTrue(membershipsRaw.nhts_pr) || isTrue(membershipsRaw.nhts) || isTrue(record.nhts_pr) || isTrue(record.nhts);
 
+        // Demographics
         const ageVal = patientInfo.age || record.age || '';
         const sexVal = (patientInfo.sex || record.sex || '').toString().trim().toLowerCase();
+        
+        // Treat as female if sex starts with 'f' OR if pregnancy is detected
         const isMale = sexVal === 'm' || sexVal === 'male';
-        const isFemale = sexVal === 'f' || sexVal === 'female';
-        const isPregnant = Boolean(patientInfo.is_pregnant || record.is_pregnant || patientInfo.pregnant || record.pregnant);
+        const isExplicitFemale = sexVal === 'f' || sexVal === 'female';
         const numAgeInYears = parseAgeToYearsNum(ageVal);
 
+        // 🎯 COMPREHENSIVE PREGNANCY EXTRACTION
+        const othersSpecifiedVal = (
+          medHistoryRaw.others_specified ||
+          medHistoryRaw.othersSpecified ||
+          record.others_specified ||
+          record.othersSpecified ||
+          medHistoryRaw.others ||
+          ''
+        ).toString().trim().toLowerCase();
+
+        const isOthersPregnant =
+          othersSpecifiedVal.includes('pregnant') ||
+          othersSpecifiedVal.includes('pregnancy');
+
+        const isPregnantFlag = Boolean(
+          patientInfo.is_pregnant ||
+          record.is_pregnant ||
+          patientInfo.pregnant ||
+          record.pregnant
+        );
+
+        // Record is pregnant if flagged OR if "pregnant" is written in Others
+        const isPregnant = isPregnantFlag || isOthersPregnant;
+        const isFemale = isExplicitFemale || isPregnant; // Auto-classify as female if pregnant
+		
         // -------------------------------------------------------------
         // 1. DENTAL CHART VISITS & SECTION A, B, C ATTENDANCE
         // -------------------------------------------------------------
@@ -713,7 +734,6 @@ export function MonthlyReportView() {
 
         // -------------------------------------------------------------
         // 🎯 SECTION E: ORALLY FIT CHILD (OFC) STATUS & SECTION F: BOHC
-        // (Uses Oral Health Condition Chart Log > Visit # > Record Entry)
         // -------------------------------------------------------------
         const isOFC = (obj: any) => {
           if (!obj) return false;
@@ -738,31 +758,45 @@ export function MonthlyReportView() {
         let hasOFCUponExam = false;
         let hasOFCUponRehab = false;
 
-        // Check if OFC is checked on the main summary or record
+        // Check if OFC is marked in oral summary / record
         const isOfcMarked =
           isOFC(oralSummaryRaw) ||
           isOFC(record.oral_health_condition_summary) ||
           isOFC(record);
 
-        // Iterate through Dental Chart Visits using strictly Chart Log > Visit # > Record Entry
+        // -------------------------------------------------------------
+        // E1: OFC UPON ORAL EXAMINATION
+        // (Requires OFC Marked + Oral Health Condition Chart Log Date Match)
+        // -------------------------------------------------------------
         visitsArr.forEach((visitLog: any) => {
           if (!visitLog) return;
-          // Extract manual Record Entry date from the chart log visit
           const visitRecordEntryDate = extractManualDate(visitLog);
 
           if (visitRecordEntryDate && matchesSelectedMonthAndYear(visitRecordEntryDate, month, year)) {
             const rawVisitSummary = visitLog.oralSummary || visitLog.summary || visitLog;
-            const isVisitOfcMarked = isOfcMarked || isOFC(rawVisitSummary) || isOFC(visitLog);
-
-            if (isVisitOfcMarked) {
-              if (visitLog.visitLabel && visitLog.visitLabel.toLowerCase().includes('rehab')) {
-                hasOFCUponRehab = true;
-              } else {
-                hasOFCUponExam = true;
-              }
+            if (isOfcMarked || isOFC(rawVisitSummary) || isOFC(visitLog)) {
+              hasOFCUponExam = true;
             }
           }
         });
+
+        // -------------------------------------------------------------
+        // E2: OFC UPON ORAL REHABILITATION
+        // (DISREGARDS OFC — Strictly checks Services Monitoring Chart > Latest Visit > Active Log)
+        // -------------------------------------------------------------
+        if (servMonArr.length > 0) {
+          // Get the latest visit tab in Services Monitoring Chart
+          const latestServMonVisit = servMonArr[servMonArr.length - 1];
+
+          if (latestServMonVisit) {
+            // Extract date from Active Log input (visitLabel or date/visitDate)
+            const activeLogDateStr = extractManualDate(latestServMonVisit) || latestServMonVisit.visitLabel || '';
+
+            if (activeLogDateStr && matchesSelectedMonthAndYear(activeLogDateStr, month, year)) {
+              hasOFCUponRehab = true;
+            }
+          }
+        }
 
         // -------------------------------------------------------------
         // INCREMENT SECTION E & F MATRICES

@@ -95,49 +95,95 @@ export const parseJsonObject = (data: any) => {
 };
 
 export const incrementMatrix = (
-  matrix: DemographicMatrix,
-  numAgeInYears: number | null,
-  ageVal: any,
+  m: DemographicMatrix,
+  numAgeInYears: number,
+  rawAgeStr: string,
   isMale: boolean,
   isFemale: boolean,
-  isPregnant: boolean
+  isPregnant: boolean = false
 ) => {
-  if (isFemale && isPregnant && numAgeInYears !== null) {
-    const pAge = Math.floor(numAgeInYears);
-    if (pAge >= 10 && pAge <= 14) matrix.preg10to14++;
-    else if (pAge >= 15 && pAge <= 19) matrix.preg15to19++;
-    else if (pAge >= 20 && pAge <= 49) matrix.preg20to49++;
-    return;
-  }
-
-  if (isInfantAge(ageVal, numAgeInYears)) {
-    if (isMale) matrix.infantMale++;
-    else if (isFemale) matrix.infantFemale++;
-    return;
-  }
-
-  if (numAgeInYears !== null) {
-    const roundedAge = Math.floor(numAgeInYears);
-    if (roundedAge === 1) { if (isMale) matrix.age1Male++; else if (isFemale) matrix.age1Female++; }
-    else if (roundedAge === 2) { if (isMale) matrix.age2Male++; else if (isFemale) matrix.age2Female++; }
-    else if (roundedAge === 3) { if (isMale) matrix.age3Male++; else if (isFemale) matrix.age3Female++; }
-    else if (roundedAge === 4) { if (isMale) matrix.age4Male++; else if (isFemale) matrix.age4Female++; }
-    else if (roundedAge === 5) { if (isMale) matrix.age5Male++; else if (isFemale) matrix.age5Female++; }
-    else if (roundedAge === 6) { if (isMale) matrix.age6Male++; else if (isFemale) matrix.age6Female++; }
-    else if (roundedAge === 7) { if (isMale) matrix.age7Male++; else if (isFemale) matrix.age7Female++; }
-    else if (roundedAge === 8) { if (isMale) matrix.age8Male++; else if (isFemale) matrix.age8Female++; }
-    else if (roundedAge === 9) { if (isMale) matrix.age9Male++; else if (isFemale) matrix.age9Female++; }
-    else if (roundedAge === 10 || roundedAge === 11 || roundedAge === 13 || roundedAge === 14) {
-      if (isMale) matrix.adolescentExcept12Male++; else if (isFemale) matrix.adolescentExcept12Female++;
-    } else if (roundedAge === 12) {
-      if (isMale) matrix.adolescent12Male++; else if (isFemale) matrix.adolescent12Female++;
-    } else if (roundedAge >= 15 && roundedAge <= 19) {
-      if (isMale) matrix.adolescent15to19Male++; else if (isFemale) matrix.adolescent15to19Female++;
-    } else if (roundedAge >= 20 && roundedAge <= 59) {
-      if (isMale) matrix.adult20to59Male++; else if (isFemale) matrix.adult20to59Female++;
-    } else if (roundedAge >= 60) {
-      if (isMale) matrix.older60PlusMale++; else if (isFemale) matrix.older60PlusFemale++;
+  // 🎯 1. PREGNANT WOMEN CHECK (TOP PRIORITY)
+  if (isPregnant) {
+    if (numAgeInYears >= 10 && numAgeInYears <= 14) {
+      m.preg10to14 = (m.preg10to14 || 0) + 1;
+      return;
+    } else if (numAgeInYears >= 15 && numAgeInYears <= 19) {
+      m.preg15to19 = (m.preg15to19 || 0) + 1;
+      return;
+    } else if (numAgeInYears >= 20 && numAgeInYears <= 49) {
+      m.preg20to49 = (m.preg20to49 || 0) + 1;
+      return;
     }
+  }
+
+  // 2. INFANT 0-11 MOS
+  if (isInfantAge(rawAgeStr, numAgeInYears)) {
+    if (isMale) m.infantMale = (m.infantMale || 0) + 1;
+    if (isFemale) m.infantFemale = (m.infantFemale || 0) + 1;
+    return;
+  }
+
+  // 3. SCHOOL AGE 1-4 Y/O
+  if (numAgeInYears === 1) {
+    if (isMale) m.age1Male = (m.age1Male || 0) + 1;
+    if (isFemale) m.age1Female = (m.age1Female || 0) + 1;
+  } else if (numAgeInYears === 2) {
+    if (isMale) m.age2Male = (m.age2Male || 0) + 1;
+    if (isFemale) m.age2Female = (m.age2Female || 0) + 1;
+  } else if (numAgeInYears === 3) {
+    if (isMale) m.age3Male = (m.age3Male || 0) + 1;
+    if (isFemale) m.age3Female = (m.age3Female || 0) + 1;
+  } else if (numAgeInYears === 4) {
+    if (isMale) m.age4Male = (m.age4Male || 0) + 1;
+    if (isFemale) m.age4Female = (m.age4Female || 0) + 1;
+  }
+
+  // 4. SCHOOL AGE 5-9 Y/O
+  else if (numAgeInYears === 5) {
+    if (isMale) m.age5Male = (m.age5Male || 0) + 1;
+    if (isFemale) m.age5Female = (m.age5Female || 0) + 1;
+  } else if (numAgeInYears === 6) {
+    if (isMale) m.age6Male = (m.age6Male || 0) + 1;
+    if (isFemale) m.age6Female = (m.age6Female || 0) + 1;
+  } else if (numAgeInYears === 7) {
+    if (isMale) m.age7Male = (m.age7Male || 0) + 1;
+    if (isFemale) m.age7Female = (m.age7Female || 0) + 1;
+  } else if (numAgeInYears === 8) {
+    if (isMale) m.age8Male = (m.age8Male || 0) + 1;
+    if (isFemale) m.age8Female = (m.age8Female || 0) + 1;
+  } else if (numAgeInYears === 9) {
+    if (isMale) m.age9Male = (m.age9Male || 0) + 1;
+    if (isFemale) m.age9Female = (m.age9Female || 0) + 1;
+  }
+
+  // 5. ADOLESCENTS 10-14 (EXCEPT 12)
+  else if (numAgeInYears >= 10 && numAgeInYears <= 14 && numAgeInYears !== 12) {
+    if (isMale) m.adolescentExcept12Male = (m.adolescentExcept12Male || 0) + 1;
+    if (isFemale) m.adolescentExcept12Female = (m.adolescentExcept12Female || 0) + 1;
+  }
+
+  // 6. ADOLESCENT 12 Y/O
+  else if (numAgeInYears === 12) {
+    if (isMale) m.adolescent12Male = (m.adolescent12Male || 0) + 1;
+    if (isFemale) m.adolescent12Female = (m.adolescent12Female || 0) + 1;
+  }
+
+  // 7. ADOLESCENTS 15-19 Y/O
+  else if (numAgeInYears >= 15 && numAgeInYears <= 19) {
+    if (isMale) m.adolescent15to19Male = (m.adolescent15to19Male || 0) + 1;
+    if (isFemale) m.adolescent15to19Female = (m.adolescent15to19Female || 0) + 1;
+  }
+
+  // 8. ADULTS 20-59 Y/O
+  else if (numAgeInYears >= 20 && numAgeInYears <= 59) {
+    if (isMale) m.adult20to59Male = (m.adult20to59Male || 0) + 1;
+    if (isFemale) m.adult20to59Female = (m.adult20to59Female || 0) + 1;
+  }
+
+  // 9. OLDER PERSONS 60+ Y/O
+  else if (numAgeInYears >= 60) {
+    if (isMale) m.older60PlusMale = (m.older60PlusMale || 0) + 1;
+    if (isFemale) m.older60PlusFemale = (m.older60PlusFemale || 0) + 1;
   }
 };
 
