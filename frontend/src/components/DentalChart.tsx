@@ -5,9 +5,11 @@ import { LegendsPalette, DENTAL_LEGENDS } from './LegendsPalette';
 
 export interface DentalVisitRecord {
   id: string;
-  visitLabel: string;   // Keeps the tab title static (e.g., "Visit 1")
-  entryDate?: string;   // Stores the specific date typed (e.g., "06/12/2024")
-  visitDate: string;    // Timestamp (e.g., "07/28/2026, 07:41:09 AM")
+  visitLabel: string;        // Keeps the tab title static (e.g., "Visit 1")
+  entryDate?: string;        // Stores the specific date typed (e.g., "01/20/2026")
+  recordEntryDate?: string;  // Alias for date consistency across components
+  record_entry_date?: string; // Snake_case alias for DB payloads
+  visitDate: string;         // Timestamp (e.g., "07/28/2026, 07:41:09 AM")
   chartData: Record<string, string>;
 }
 
@@ -63,6 +65,8 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
       id: `visit-${Date.now()}`,
       visitLabel: `Visit ${nextVisitNumber}`,
       entryDate: '',
+      recordEntryDate: '',
+      record_entry_date: '',
       visitDate: getLocalPCDateTime(),
       chartData: {},
     };
@@ -132,9 +136,19 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
     );
   };
 
+  // 🎯 REAL-TIME DATE HANDLER: Syncs entryDate, recordEntryDate, and record_entry_date simultaneously
   const handleEntryDateChange = (newEntryDate: string) => {
     setVisits((prevVisits) =>
-      prevVisits.map((v) => (v.id === activeVisitId ? { ...v, entryDate: newEntryDate } : v))
+      prevVisits.map((v) =>
+        v.id === activeVisitId
+          ? {
+              ...v,
+              entryDate: newEntryDate,
+              recordEntryDate: newEntryDate,
+              record_entry_date: newEntryDate,
+            }
+          : v
+      )
     );
   };
 
@@ -201,7 +215,7 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
                   )}
                 </div>
                 <div className="text-[10px] text-slate-400 font-mono mt-0.5">
-                  {visit.visitDate || getLocalPCDateTime()}
+                  {visit.recordEntryDate || visit.entryDate || visit.visitDate || getLocalPCDateTime()}
                 </div>
               </div>
 
@@ -231,7 +245,7 @@ export default function DentalChart({ visits, setVisits }: DentalChartProps) {
             <Calendar className="w-4 h-4 text-blue-400" />
             <input
               type="text"
-              value={activeVisit.entryDate || ''}
+              value={activeVisit.recordEntryDate || activeVisit.entryDate || ''}
               onChange={(e) => handleEntryDateChange(e.target.value)}
               className="bg-slate-950 border border-slate-700 text-blue-300 font-bold px-2 py-1 rounded text-xs w-28 text-center focus:outline-none focus:border-blue-500"
               placeholder="MM/DD/YYYY"

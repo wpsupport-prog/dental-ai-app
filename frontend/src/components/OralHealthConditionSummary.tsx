@@ -10,6 +10,7 @@ interface VisitLog {
   id: string;
   visitLabel: string;
   visitDate: string;
+  recordEntryDate?: string;
   chartData: ToothMarkings;
 }
 
@@ -33,17 +34,40 @@ interface OralHealthConditionSummaryProps {
 }
 
 export const OralHealthConditionSummary: React.FC<OralHealthConditionSummaryProps> = ({
-  visits,
+  visits = [],
   isEditable = true,
   sectionAData,
   onSectionAChange,
 }) => {
-  const latestVisit = visits && visits.length > 0 ? visits[0] : null;
-  const chartData = latestVisit?.chartData || {};
+  // Grab the primary active visit log
+  const activeVisit = visits && visits.length > 0 ? visits[0] : null;
+  const chartData = activeVisit?.chartData || {};
 
-  // Calculate mapped counts using the modular calculator helper
+  // Calculate dental counts
   const counts = calculateDentalCounts(chartData);
-  const examDate = latestVisit?.visitDate ? latestVisit.visitDate.split(',')[0] : 'N/A';
+
+  // Live Date Extraction: Prioritizes typed manual record entry date over system timestamps
+  const getLiveExamDate = (): string => {
+    if (!activeVisit) return 'N/A';
+
+    const candidates = [
+      (activeVisit as any).recordEntryDate,
+      (activeVisit as any).record_entry_date,
+      (activeVisit as any).entryDate,
+      activeVisit.visitDate,
+    ];
+
+    for (const cand of candidates) {
+      if (cand && typeof cand === 'string' && cand.trim() !== '') {
+        // Strip out trailing time if present (e.g. "01/20/2026, 11:11:29 AM" -> "01/20/2026")
+        return cand.trim().split(',')[0].split('T')[0];
+      }
+    }
+
+    return 'N/A';
+  };
+
+  const examDate = getLiveExamDate();
 
   const defaultAbsentState: SectionAConditions = {
     orallyFitChild: '*',

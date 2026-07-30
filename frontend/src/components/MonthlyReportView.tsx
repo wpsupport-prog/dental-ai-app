@@ -249,6 +249,23 @@ export function MonthlyReportView() {
     toothBrushingDrill: createEmptyMatrix(),
   });
 
+  // SECTION E: ORALLY FIT CHILD (OFC) STATUS
+  const [ofcStatus, setOfcStatus] = useState({
+    examTotal: createEmptyMatrix(),
+    examNhts: createEmptyMatrix(),
+    examNonNhts: createEmptyMatrix(),
+    rehabTotal: createEmptyMatrix(),
+    rehabNhts: createEmptyMatrix(),
+    rehabNonNhts: createEmptyMatrix(),
+  });
+
+  // SECTION F: PATIENTS EXAMINED GIVEN BOHC
+  const [bohcStatus, setBohcStatus] = useState({
+    totalBohc: createEmptyMatrix(),
+    nhts: createEmptyMatrix(),
+    nonNhts: createEmptyMatrix(),
+  });
+
   const fetchReportData = async () => {
     setIsLoading(true);
     
@@ -360,6 +377,21 @@ export function MonthlyReportView() {
       toothBrushingDrill: createEmptyMatrix(),
     };
 
+    const ofc = {
+      examTotal: createEmptyMatrix(),
+      examNhts: createEmptyMatrix(),
+      examNonNhts: createEmptyMatrix(),
+      rehabTotal: createEmptyMatrix(),
+      rehabNhts: createEmptyMatrix(),
+      rehabNonNhts: createEmptyMatrix(),
+    };
+
+    const bohc = {
+      totalBohc: createEmptyMatrix(),
+      nhts: createEmptyMatrix(),
+      nonNhts: createEmptyMatrix(),
+    };
+
     if (!Array.isArray(records) || records.length === 0) {
       setCounts(attended);
       setExaminedCounts(examined);
@@ -368,6 +400,8 @@ export function MonthlyReportView() {
       setOralHealth(oral);
       setDmfDfCounts(dmfDf);
       setServicesRenderedCounts(serv);
+      setOfcStatus(ofc);
+      setBohcStatus(bohc);
       return;
     }
 
@@ -453,6 +487,12 @@ export function MonthlyReportView() {
         const servicesRenderedRaw = typeof record.record_of_services_rendered === 'string'
           ? parseJsonObject(record.record_of_services_rendered) || []
           : (record.record_of_services_rendered || []);
+
+        const membershipsRaw = typeof record.memberships === 'string'
+          ? parseJsonObject(record.memberships) || {}
+          : (record.memberships || {});
+
+        const isNHTS = isTrue(membershipsRaw.nhts_pr) || isTrue(membershipsRaw.nhts) || isTrue(record.nhts_pr) || isTrue(record.nhts);
 
         const ageVal = patientInfo.age || record.age || '';
         const sexVal = (patientInfo.sex || record.sex || '').toString().trim().toLowerCase();
@@ -671,6 +711,92 @@ export function MonthlyReportView() {
           }
         }
 
+        // -------------------------------------------------------------
+        // 🎯 SECTION E: ORALLY FIT CHILD (OFC) STATUS & SECTION F: BOHC
+        // (Uses Oral Health Condition Chart Log > Visit # > Record Entry)
+        // -------------------------------------------------------------
+        const isOFC = (obj: any) => {
+          if (!obj) return false;
+          const val = (
+            obj.oh_orally_fit_child !== undefined ? obj.oh_orally_fit_child :
+            obj.orally_fit_child !== undefined ? obj.orally_fit_child :
+            obj.orallyFitChild !== undefined ? obj.orallyFitChild :
+            obj.ofc !== undefined ? obj.ofc :
+            ''
+          ).toString().trim().toLowerCase();
+
+          return (
+            val === 'present' ||
+            val === 'checked' ||
+            val === 'true' ||
+            val === '✓' ||
+            val === 'yes' ||
+            val === '1'
+          );
+        };
+
+        let hasOFCUponExam = false;
+        let hasOFCUponRehab = false;
+
+        // Check if OFC is checked on the main summary or record
+        const isOfcMarked =
+          isOFC(oralSummaryRaw) ||
+          isOFC(record.oral_health_condition_summary) ||
+          isOFC(record);
+
+        // Iterate through Dental Chart Visits using strictly Chart Log > Visit # > Record Entry
+        visitsArr.forEach((visitLog: any) => {
+          if (!visitLog) return;
+          // Extract manual Record Entry date from the chart log visit
+          const visitRecordEntryDate = extractManualDate(visitLog);
+
+          if (visitRecordEntryDate && matchesSelectedMonthAndYear(visitRecordEntryDate, month, year)) {
+            const rawVisitSummary = visitLog.oralSummary || visitLog.summary || visitLog;
+            const isVisitOfcMarked = isOfcMarked || isOFC(rawVisitSummary) || isOFC(visitLog);
+
+            if (isVisitOfcMarked) {
+              if (visitLog.visitLabel && visitLog.visitLabel.toLowerCase().includes('rehab')) {
+                hasOFCUponRehab = true;
+              } else {
+                hasOFCUponExam = true;
+              }
+            }
+          }
+        });
+
+        // -------------------------------------------------------------
+        // INCREMENT SECTION E & F MATRICES
+        // -------------------------------------------------------------
+        // 1. OFC Upon Oral Examination
+        if (hasOFCUponExam) {
+          incrementMatrix(ofc.examTotal, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          if (isNHTS) {
+            incrementMatrix(ofc.examNhts, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          } else {
+            incrementMatrix(ofc.examNonNhts, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+        }
+
+        // 2. OFC Upon Oral Rehabilitation
+        if (hasOFCUponRehab) {
+          incrementMatrix(ofc.rehabTotal, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          if (isNHTS) {
+            incrementMatrix(ofc.rehabNhts, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          } else {
+            incrementMatrix(ofc.rehabNonNhts, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+        }
+
+        // SECTION F: NO. OF PATIENTS EXAMINED GIVEN BOHC
+        if (recordHasMatchingClinicalVisit) {
+          incrementMatrix(bohc.totalBohc, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          if (isNHTS) {
+            incrementMatrix(bohc.nhts, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          } else {
+            incrementMatrix(bohc.nonNhts, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+          }
+        }
+
       } catch (e) {
         console.error('Error processing record:', e, record);
       }
@@ -684,6 +810,17 @@ export function MonthlyReportView() {
     Object.values(dmfDf).forEach(finalizeMatrixTotals);
     Object.values(serv).forEach(finalizeMatrixTotals);
 
+    finalizeMatrixTotals(ofc.examTotal);
+    finalizeMatrixTotals(ofc.examNhts);
+    finalizeMatrixTotals(ofc.examNonNhts);
+    finalizeMatrixTotals(ofc.rehabTotal);
+    finalizeMatrixTotals(ofc.rehabNhts);
+    finalizeMatrixTotals(ofc.rehabNonNhts);
+
+    finalizeMatrixTotals(bohc.totalBohc);
+    finalizeMatrixTotals(bohc.nhts);
+    finalizeMatrixTotals(bohc.nonNhts);
+
     setCounts(attended);
     setExaminedCounts(examined);
     setMedHistory(med);
@@ -691,6 +828,8 @@ export function MonthlyReportView() {
     setOralHealth(oral);
     setDmfDfCounts(dmfDf);
     setServicesRenderedCounts(serv);
+    setOfcStatus(ofc);
+    setBohcStatus(bohc);
   };
   
   useEffect(() => {
@@ -1026,27 +1165,20 @@ export function MonthlyReportView() {
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
                 <td colSpan={43} className="p-1 border border-slate-800 uppercase">E. ORALLY FIT CHILD (OFC) STATUS</td>
               </tr>
-              {["1. OFC Upon Oral Examination", "  NHTS", "  4PS", "2. OFC Upon Oral Rehabilitation", "  NHTS", "  4PS"].map((item, idx) => (
-                <tr key={`ofc-${idx}`} className={`hover:bg-slate-900/40 ${item.startsWith('1.') || item.startsWith('2.') ? 'font-semibold' : 'text-slate-400'}`}>
-                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
-                  {Array.from({ length: 42 }).map((_, i) => (
-                    <td key={`ofc-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
-                  ))}
-                </tr>
-              ))}
+              <MatrixRow label="1. OFC Upon Oral Examination" m={ofcStatus.examTotal} />
+              <MatrixRow label="  NHTS" m={ofcStatus.examNhts} />
+              <MatrixRow label="  NON-NHTS" m={ofcStatus.examNonNhts} />
+              <MatrixRow label="2. OFC Upon Oral Rehabilitation" m={ofcStatus.rehabTotal} />
+              <MatrixRow label="  NHTS" m={ofcStatus.rehabNhts} />
+              <MatrixRow label="  NON-NHTS" m={ofcStatus.rehabNonNhts} />
 
               {/* SECTION F: PATIENTS EXAMINED GIVEN BOHC */}
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
                 <td colSpan={43} className="p-1 border border-slate-800 uppercase">F. NO. OF PATIENTS EXAMINED GIVEN BOHC</td>
               </tr>
-              {["TOTAL PATIENTS GIVEN BOHC", "  NHTS", "  4PS"].map((item, idx) => (
-                <tr key={`bohc-${idx}`} className={`hover:bg-slate-900/40 ${idx === 0 ? 'font-semibold' : 'text-slate-400'}`}>
-                  <td className="p-1 border border-slate-800 text-left sticky left-0 bg-slate-950 z-10">{item}</td>
-                  {Array.from({ length: 42 }).map((_, i) => (
-                    <td key={`bohc-val-${idx}-${i}`} className="p-1 border border-slate-800 font-mono">0</td>
-                  ))}
-                </tr>
-              ))}
+              <MatrixRow label="TOTAL PATIENTS GIVEN BOHC" m={bohcStatus.totalBohc} />
+              <MatrixRow label="  NHTS" m={bohcStatus.nhts} />
+              <MatrixRow label="  NON-NHTS" m={bohcStatus.nonNhts} />
 
             </tbody>
           </table>
