@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, Info, Eraser, Check, Plus, Calendar } from 'lucide-react';
+import { Activity, Info, Eraser, Check, Plus, Calendar, Trash2 } from 'lucide-react';
 
 export interface ServiceVisitRecord {
   id: string;
@@ -134,6 +134,28 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
     onChange(updatedVisits);
   };
 
+  // Delete current active service monitoring visit log
+  const handleDeleteServiceVisit = () => {
+    if (!isEditable || !onChange) return;
+
+    if (visits.length <= 1) {
+      alert('Cannot delete the initial visit record.');
+      return;
+    }
+
+    if (window.confirm('Are you sure you want to delete this return visit record?')) {
+      const updatedVisits = visits.filter((v) => v.id !== activeVisit.id);
+      
+      const remainingIndex = Math.max(
+        0,
+        visits.findIndex((v) => v.id === activeVisit.id) - 1
+      );
+      
+      setActiveVisitId(updatedVisits[remainingIndex]?.id || updatedVisits[0].id);
+      onChange(updatedVisits);
+    }
+  };
+
   // Update logLabel
   const handleServiceLabelChange = (newLabel: string) => {
     if (!isEditable || !onChange) return;
@@ -222,26 +244,40 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
   return (
     <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 my-4 space-y-4">
       {/* Header Bar */}
-      <div className="flex justify-between items-center border-b border-slate-800 pb-2">
-        <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider">
-          <Activity className="w-4 h-4" /> Services Monitoring Chart
+      <div className="flex justify-between items-center bg-slate-900/60 p-3 rounded-lg border border-slate-800 mb-4">
+        <div className="flex items-center gap-2 text-blue-400 font-bold text-sm">
+          <Activity className="w-4 h-4" />
+          <span>SERVICES MONITORING CHART</span>
         </div>
 
         <div className="flex items-center gap-3">
+          <span className="text-[10px] text-slate-400 font-mono">
+            Active Palette Code: <strong className="text-blue-400">{selectedSymbol || 'NONE'}</strong>
+          </span>
+
+          {/* Add Return Visit Log Button */}
           {isEditable && (
             <button
               type="button"
               onClick={handleAddServiceVisit}
-              className="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+              className="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition cursor-pointer"
             >
-              <Plus className="w-3.5 h-3.5" /> Add Service Visit Chart
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Return Visit Log</span>
             </button>
           )}
 
-          {selectedSymbol !== undefined && (
-            <span className="text-[10px] font-mono text-slate-400 bg-slate-900 px-2.5 py-1 rounded border border-slate-800">
-              Active Palette Code: <strong className="text-blue-400">{selectedSymbol || 'CLEAR (ERASER)'}</strong>
-            </span>
+          {/* Delete Active Visit Button */}
+          {isEditable && visits.length > 1 && (
+            <button
+              type="button"
+              onClick={handleDeleteServiceVisit}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/40 text-red-400 hover:text-red-300 border border-red-500/30 rounded-lg text-xs font-semibold transition cursor-pointer"
+              title="Delete active return visit log"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Active Visit</span>
+            </button>
           )}
         </div>
       </div>
@@ -286,7 +322,7 @@ export const ServicesMonitoringChart: React.FC<ServicesMonitoringChartProps> = (
             />
           </div>
 
-          {/* 🎯 FLUORIDE STATUS RADIO BUTTONS (POSITIONED DIRECTLY UNDER ACTIVE LOG) */}
+          {/* FLUORIDE STATUS RADIO BUTTONS */}
           <div className="flex items-center gap-3 bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg text-xs w-fit">
             <span className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
               Fluoride Status:
