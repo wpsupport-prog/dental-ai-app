@@ -32,7 +32,7 @@ const addValueToMatrix = (
 ) => {
   if (!valToAdd || valToAdd <= 0) return;
 
-  // 🎯 PREGNANT WOMEN AGE BRACKETS
+  // Pregnant Women
   if (isPregnant && isFemale) {
     if (numAgeInYears >= 10 && numAgeInYears <= 14) m.preg10to14 = (m.preg10to14 || 0) + valToAdd;
     else if (numAgeInYears >= 15 && numAgeInYears <= 19) m.preg15to19 = (m.preg15to19 || 0) + valToAdd;
@@ -172,8 +172,8 @@ const MatrixRow = ({ label, m }: { label: string; m: DemographicMatrix }) => (
 );
 
 export function MonthlyReportView() {
-  const [month, setMonth] = useState<string>('JULY');
-  const [quarter, setQuarter] = useState<string>('3RD');
+  const [month, setMonth] = useState<string>('JANUARY');
+  const [quarter, setQuarter] = useState<string>('1ST');
   const [year, setYear] = useState<string>('2026');
   const [facility, setFacility] = useState<string>('RURAL HEALTH UNIT II');
   const [municipality, setMunicipality] = useState<string>('SAN JOSE CITY / NUEVA ECIJA');
@@ -315,6 +315,58 @@ export function MonthlyReportView() {
     calculateCounts(recordsList);
     setIsLoading(false);
   };
+
+  const handleExportExcel = () => {
+    const tableElement = document.querySelector('table');
+    if (!tableElement) {
+      alert('Report table not found.');
+      return;
+    }
+
+    const htmlContent = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head>
+          <meta charset="utf-8" />
+          <!--[if gte mso 9]>
+          <xml>
+            <x:ExcelWorkbook>
+              <x:ExcelWorksheets>
+                <x:ExcelWorksheet>
+                  <x:Name>Monthly Oral Health Report</x:Name>
+                  <x:WorksheetOptions>
+                    <x:DisplayGridlines/>
+                  </x:WorksheetOptions>
+                </x:ExcelWorksheet>
+              </x:ExcelWorksheets>
+            </x:ExcelWorkbook>
+          </xml>
+          <![endif]-->
+          <style>
+            table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px; }
+            th, td { border: 1px solid #333333; padding: 4px; text-align: center; }
+            th { background-color: #0f172a; color: #ffffff; font-weight: bold; }
+          </style>
+        </head>
+        <body>
+          <h2>CONSOLIDATED ORAL HEALTH STATUS, SERVICES AND MEDICAL HISTORY MONTHLY REPORTING</h2>
+          <p><b>Facility:</b> ${facility} | <b>Location:</b> ${municipality} | <b>Period:</b> ${month} ${quarter} QTR ${year}</p>
+          ${tableElement.outerHTML}
+        </body>
+      </html>
+    `;
+
+    const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    
+    const link = document.createElement('a');
+    link.href = url;
+    const sanitizedFacility = facility.replace(/[^a-zA-Z0-9]/g, '_');
+    link.download = `Monthly_Report_${sanitizedFacility}_${month}_${year}.xls`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
   
   const calculateCounts = (records: any[]) => {
     const attended = createEmptyMatrix();
@@ -427,7 +479,7 @@ export function MonthlyReportView() {
       return false;
     };
 
-    // Helper to get the clean manual date, prioritizing manual MM/DD/YYYY over system timestamps
+    // Flexible manual date parser (handles single/double digits like 1/25/2026 or 01/25/2026)
     const extractManualDate = (logObj: any): string => {
       if (!logObj) return '';
       const candidates = [
@@ -435,19 +487,20 @@ export function MonthlyReportView() {
         logObj.record_entry_date,
         logObj.entryDate,
         logObj.visitDate,
+        logObj.activeLog,
+        logObj.active_log,
         logObj.date,
+        logObj.visitLabel,
       ];
 
       for (const cand of candidates) {
         if (!cand) continue;
         const str = cand.toString().trim();
-        // Priority 1: Exact MM/DD/YYYY format (e.g. 01/20/2026)
         if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(str)) {
           return str;
         }
       }
 
-      // Priority 2: Standard date strings (strip trailing time components if present)
       for (const cand of candidates) {
         if (!cand) continue;
         const str = cand.toString().trim().split(',')[0].split('T')[0];
@@ -482,22 +535,30 @@ export function MonthlyReportView() {
           ? parseJsonObject(record.record_of_services_rendered) || []
           : (record.record_of_services_rendered || []);
 
+        // -------------------------------------------------------------
+        // 🎯 MEMBERSHIP & DEMOGRAPHIC PARSING WITH PREGNANCY DETECTION
+        // -------------------------------------------------------------
         const membershipsRaw = typeof record.memberships === 'string'
           ? parseJsonObject(record.memberships) || {}
           : (record.memberships || {});
 
-        const isNHTS = isTrue(membershipsRaw.nhts_pr) || isTrue(membershipsRaw.nhts) || isTrue(record.nhts_pr) || isTrue(record.nhts);
+        // Strict Membership Boolean Check (Matches formData.nhtsPr -> memberships.nhts_pr)
+        const isNHTS = Boolean(
+          isTrue(membershipsRaw.nhts_pr) ||
+          isTrue(membershipsRaw.nhtsPr) ||
+          isTrue(membershipsRaw.nhts) ||
+          isTrue(record.nhts_pr) ||
+          isTrue(record.nhtsPr) ||
+          isTrue(record.nhts)
+        );
 
-        // Demographics
         const ageVal = patientInfo.age || record.age || '';
         const sexVal = (patientInfo.sex || record.sex || '').toString().trim().toLowerCase();
-        
-        // Treat as female if sex starts with 'f' OR if pregnancy is detected
         const isMale = sexVal === 'm' || sexVal === 'male';
         const isExplicitFemale = sexVal === 'f' || sexVal === 'female';
         const numAgeInYears = parseAgeToYearsNum(ageVal);
 
-        // 🎯 COMPREHENSIVE PREGNANCY EXTRACTION
+        // Medical History "Others (Please specify)" Pregnancy Check
         const othersSpecifiedVal = (
           medHistoryRaw.others_specified ||
           medHistoryRaw.othersSpecified ||
@@ -518,12 +579,14 @@ export function MonthlyReportView() {
           record.pregnant
         );
 
-        // Record is pregnant if flagged OR if "pregnant" is written in Others
+        // 🎯 Evaluates to TRUE if flagged OR if "pregnant" was entered under Others
         const isPregnant = isPregnantFlag || isOthersPregnant;
-        const isFemale = isExplicitFemale || isPregnant; // Auto-classify as female if pregnant
-		
+        
+        // 🎯 Automatically classifies patient as Female if pregnant
+        const isFemale = isExplicitFemale || isPregnant;
+
         // -------------------------------------------------------------
-        // 1. DENTAL CHART VISITS & SECTION A, B, C ATTENDANCE
+        // 1. DENTAL CHART VISITS
         // -------------------------------------------------------------
         const visitsArr = Array.isArray(dentalChartRaw)
           ? dentalChartRaw
@@ -540,7 +603,6 @@ export function MonthlyReportView() {
           if (visitDateStr && matchesSelectedMonthAndYear(visitDateStr, month, year)) {
             recordHasMatchingClinicalVisit = true;
 
-            // Compute DMF / df teeth counts for this matching visit
             let rawVisitData = visitLog.chartData !== undefined ? visitLog.chartData : (visitLog.teeth !== undefined ? visitLog.teeth : visitLog);
             if (typeof rawVisitData === 'string') {
               rawVisitData = parseJsonObject(rawVisitData) || {};
@@ -549,12 +611,10 @@ export function MonthlyReportView() {
             const chartData: Record<string, string> = typeof rawVisitData === 'object' && rawVisitData !== null ? rawVisitData : {};
             const dCounts = calculateDentalCounts(chartData);
 
-            // 7. Total (df) T
             addValueToMatrix(dmfDf.totalDf, dCounts.totalDF, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
             addValueToMatrix(dmfDf.tempDecayed, dCounts.tempDecayed, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
             addValueToMatrix(dmfDf.tempFilled, dCounts.tempFilled, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
 
-            // 8. Total (DMF) T
             addValueToMatrix(dmfDf.totalDmf, dCounts.totalDMF, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
             addValueToMatrix(dmfDf.permDecayed, dCounts.permDecayed, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
             addValueToMatrix(dmfDf.permMissing, dCounts.permMissing, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
@@ -631,7 +691,6 @@ export function MonthlyReportView() {
           }
         }
 
-        // Services Monitoring Chart Completed Fluoride Check
         const servMonArr = Array.isArray(servicesMonRaw)
           ? servicesMonRaw
           : servicesMonRaw && typeof servicesMonRaw === 'object'
@@ -655,14 +714,12 @@ export function MonthlyReportView() {
         }
 
         // -------------------------------------------------------------
-        // 3. ATTENDED / EXAMINED / MEDICAL HISTORY / DIETARY HISTORY / SUMMARY
-        // (ONLY INCREMENT IF A MATCHING CLINICAL VISIT LOG WAS FOUND FOR THIS MONTH)
+        // 3. ATTENDED / EXAMINED / MEDICAL HISTORY / DIETARY HISTORY
         // -------------------------------------------------------------
         if (recordHasMatchingClinicalVisit) {
           incrementMatrix(attended, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           incrementMatrix(examined, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
 
-          // Medical History
           if (hasCondition(medHistoryRaw, record, 'allergies_checked', 'allergiesChecked', 'allergies', 'allergies_specified')) {
             incrementMatrix(med.allergies, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
@@ -697,7 +754,6 @@ export function MonthlyReportView() {
             incrementMatrix(med.tattoo, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // Dietary / Social History
           if (hasCondition(socialHistoryRaw, record, 'sugar_beverages_checked', 'sugarBeveragesChecked', 'sugar_beverages_specified', 'sugarBeveragesSpecified', 'sugar_beverage')) {
             incrementMatrix(diet.sweetenedBeverage, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
@@ -711,7 +767,6 @@ export function MonthlyReportView() {
             incrementMatrix(diet.betelNut, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
 
-          // Section C Oral Health Summary
           if (hasCondition(oralSummaryRaw, record, 'oh_dental_caries', 'dentalCaries', 'dental_caries', 'caries')) {
             incrementMatrix(oral.dentalCaries, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           }
@@ -732,76 +787,81 @@ export function MonthlyReportView() {
           }
         }
 
-        // -------------------------------------------------------------
+		// -------------------------------------------------------------
         // 🎯 SECTION E: ORALLY FIT CHILD (OFC) STATUS & SECTION F: BOHC
         // -------------------------------------------------------------
         const isOFC = (obj: any) => {
           if (!obj) return false;
           const val = (
-            obj.oh_orally_fit_child !== undefined ? obj.oh_orally_fit_child :
-            obj.orally_fit_child !== undefined ? obj.orally_fit_child :
-            obj.orallyFitChild !== undefined ? obj.orallyFitChild :
-            obj.ofc !== undefined ? obj.ofc :
+            obj.oh_orally_fit_child ??
+            obj.orally_fit_child ??
+            obj.orallyFitChild ??
+            obj.ofc ??
             ''
           ).toString().trim().toLowerCase();
 
-          return (
-            val === 'present' ||
-            val === 'checked' ||
-            val === 'true' ||
-            val === '✓' ||
-            val === 'yes' ||
-            val === '1'
-          );
+          return val === 'present' || val === 'checked' || val === 'true' || val === '✓' || val === 'yes' || val === '1';
         };
 
-        let hasOFCUponExam = false;
-        let hasOFCUponRehab = false;
+        const isOFCAbsent = (obj: any) => {
+          if (!obj) return false;
+          const val = (
+            obj.oh_orally_fit_child ??
+            obj.orally_fit_child ??
+            obj.orallyFitChild ??
+            obj.ofc ??
+            ''
+          ).toString().trim().toLowerCase();
 
-        // Check if OFC is marked in oral summary / record
-        const isOfcMarked =
-          isOFC(oralSummaryRaw) ||
-          isOFC(record.oral_health_condition_summary) ||
+          return val === '*' || val === 'absent' || val === 'false' || val === 'no' || val === '0';
+        };
+
+        // 🎯 DIRECT TOP-LEVEL & VISIT OFC CHECK
+        const isExamOfcChecked = 
+          isOFC(oralSummaryRaw) || 
+          isOFC(record.oral_health_condition_summary) || 
           isOFC(record);
 
-        // -------------------------------------------------------------
-        // E1: OFC UPON ORAL EXAMINATION
-        // (Requires OFC Marked + Oral Health Condition Chart Log Date Match)
-        // -------------------------------------------------------------
-        visitsArr.forEach((visitLog: any) => {
-          if (!visitLog) return;
-          const visitRecordEntryDate = extractManualDate(visitLog);
+        let hasOFCUponExam = false;
+        let rehabMatchingCount = 0;
 
-          if (visitRecordEntryDate && matchesSelectedMonthAndYear(visitRecordEntryDate, month, year)) {
-            const rawVisitSummary = visitLog.oralSummary || visitLog.summary || visitLog;
-            if (isOfcMarked || isOFC(rawVisitSummary) || isOFC(visitLog)) {
-              hasOFCUponExam = true;
-            }
-          }
-        });
-
-        // -------------------------------------------------------------
-        // E2: OFC UPON ORAL REHABILITATION
-        // (DISREGARDS OFC — Strictly checks Services Monitoring Chart > Latest Visit > Active Log)
-        // -------------------------------------------------------------
-        if (servMonArr.length > 0) {
-          // Get the latest visit tab in Services Monitoring Chart
-          const latestServMonVisit = servMonArr[servMonArr.length - 1];
-
-          if (latestServMonVisit) {
-            // Extract date from Active Log input (visitLabel or date/visitDate)
-            const activeLogDateStr = extractManualDate(latestServMonVisit) || latestServMonVisit.visitLabel || '';
-
-            if (activeLogDateStr && matchesSelectedMonthAndYear(activeLogDateStr, month, year)) {
-              hasOFCUponRehab = true;
-            }
+        // Check if OFC exam date matches selected month/year
+        if (isExamOfcChecked) {
+          // Check top-level entry date OR visit entry dates
+          const recordEntryDate = extractManualDate(record) || extractManualDate(oralSummaryRaw);
+          if (recordEntryDate && matchesSelectedMonthAndYear(recordEntryDate, month, year)) {
+            hasOFCUponExam = true;
+          } else if (visitsArr.length > 0) {
+            visitsArr.forEach((v: any) => {
+              const vDate = extractManualDate(v);
+              if (vDate && matchesSelectedMonthAndYear(vDate, month, year)) {
+                hasOFCUponExam = true;
+              }
+            });
+          } else {
+            // Fallback: If clinical visit matched this month, count OFC Upon Exam
+            hasOFCUponExam = recordHasMatchingClinicalVisit;
           }
         }
 
+        // 🎯 REHABILITATION TRIGGER: ONLY IF NOT EXAM OFC
+        if (!hasOFCUponExam && servMonArr.length > 0) {
+          servMonArr.forEach((servMonVisit: any) => {
+            if (!servMonVisit) return;
+            const activeLogDateStr =
+              servMonVisit.activeLog ||
+              servMonVisit.active_log ||
+              extractManualDate(servMonVisit);
+
+            if (activeLogDateStr && matchesSelectedMonthAndYear(activeLogDateStr, month, year)) {
+              rehabMatchingCount += 1;
+            }
+          });
+        }
+
         // -------------------------------------------------------------
-        // INCREMENT SECTION E & F MATRICES
+        // INCREMENT MATRICES
         // -------------------------------------------------------------
-        // 1. OFC Upon Oral Examination
         if (hasOFCUponExam) {
           incrementMatrix(ofc.examTotal, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
           if (isNHTS) {
@@ -811,13 +871,14 @@ export function MonthlyReportView() {
           }
         }
 
-        // 2. OFC Upon Oral Rehabilitation
-        if (hasOFCUponRehab) {
-          incrementMatrix(ofc.rehabTotal, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-          if (isNHTS) {
-            incrementMatrix(ofc.rehabNhts, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
-          } else {
-            incrementMatrix(ofc.rehabNonNhts, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+        if (rehabMatchingCount > 0) {
+          for (let i = 0; i < rehabMatchingCount; i++) {
+            incrementMatrix(ofc.rehabTotal, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+            if (isNHTS) {
+              incrementMatrix(ofc.rehabNhts, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+            } else {
+              incrementMatrix(ofc.rehabNonNhts, numAgeInYears, ageVal, isMale, isFemale, isPregnant);
+            }
           }
         }
 
@@ -870,70 +931,9 @@ export function MonthlyReportView() {
     fetchReportData();
   }, [month, quarter, year]);
 
-  const handlePrint = () => {
-    window.print();
-  };
-  
-  const handleExportExcel = () => {
-    // Locate the reporting table DOM element
-    const tableElement = document.querySelector('table');
-    if (!tableElement) {
-      alert('Report table not found.');
-      return;
-    }
-
-    // Wrap the table HTML in Excel-compliant HTML/XML structure with standard UTF-8 encoding
-    const htmlContent = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-        <head>
-          <meta charset="utf-8" />
-          <!--[if gte mso 9]>
-          <xml>
-            <x:ExcelWorkbook>
-              <x:ExcelWorksheets>
-                <x:ExcelWorksheet>
-                  <x:Name>Monthly Oral Health Report</x:Name>
-                  <x:WorksheetOptions>
-                    <x:DisplayGridlines/>
-                  </x:WorksheetOptions>
-                </x:ExcelWorksheet>
-              </x:ExcelWorksheets>
-            </x:ExcelWorkbook>
-          </xml>
-          <![endif]-->
-          <style>
-            table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 10px; }
-            th, td { border: 1px solid #333333; padding: 4px; text-align: center; }
-            th { background-color: #0f172a; color: #ffffff; font-weight: bold; }
-            .section-header { background-color: #020617; color: #38bdf8; font-weight: bold; text-align: left; }
-          </style>
-        </head>
-        <body>
-          <h2>CONSOLIDATED ORAL HEALTH STATUS, SERVICES AND MEDICAL HISTORY MONTHLY REPORTING</h2>
-          <p><b>Facility:</b> ${facility} | <b>Location:</b> ${municipality} | <b>Period:</b> ${month} ${quarter} QTR ${year}</p>
-          ${tableElement.outerHTML}
-        </body>
-      </html>
-    `;
-
-    // Create a Blob with Excel MIME type
-    const blob = new Blob([htmlContent], { type: 'application/vnd.ms-excel;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    
-    // Create download link and trigger
-    const link = document.createElement('a');
-    link.href = url;
-    const sanitizedFacility = facility.replace(/[^a-zA-Z0-9]/g, '_');
-    link.download = `Monthly_Report_${sanitizedFacility}_${month}_${year}.xls`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-  };
-	
   return (
     <div className="space-y-6">
-      {/* Top Action & Filter Toolbar */}
+      {/* Top Action Toolbar */}
       <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 flex flex-wrap justify-between items-center gap-4 print:hidden">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
@@ -945,7 +945,7 @@ export function MonthlyReportView() {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Filters & Export */}
         <div className="flex flex-wrap items-center gap-3 text-xs">
           <div>
             <label className="block text-[10px] text-slate-400 font-semibold mb-1 uppercase">Month / Quarter / Year</label>
@@ -987,16 +987,14 @@ export function MonthlyReportView() {
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
             </button>
-			
-			<button
+
+            <button
               onClick={handleExportExcel}
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition shadow-sm"
               title="Export to Excel Spreadsheet"
             >
               <FileSpreadsheet className="w-4 h-4" /> Export Excel
             </button>
-
-            
           </div>
         </div>
       </div>
@@ -1005,7 +1003,6 @@ export function MonthlyReportView() {
       <div className="bg-slate-950 p-6 rounded-xl border border-slate-800 space-y-4 print:bg-white print:text-black print:border-none">
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-xs font-mono border-b border-slate-800 pb-4">
-          
           <div>
             <label className="text-slate-400 block text-[10px] uppercase font-semibold mb-1">
               Month / Quarter / Year:
@@ -1074,7 +1071,6 @@ export function MonthlyReportView() {
               />
             </div>
           </div>
-
         </div>
 
         <div className="text-center py-2">
@@ -1083,11 +1079,10 @@ export function MonthlyReportView() {
           </h3>
         </div>
 
-        {/* Reporting Sheet Table */}
+        {/* Reporting Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse border border-slate-800 text-[9px] font-mono whitespace-nowrap">
             <thead className="bg-slate-900 text-slate-300">
-              {/* ROW 1: TOP-LEVEL GROUPS */}
               <tr>
                 <th rowSpan={3} className="border border-slate-800 p-2 min-w-[220px] align-middle text-center bg-slate-950 font-bold sticky left-0 z-10">
                   INDICATORS
@@ -1124,7 +1119,6 @@ export function MonthlyReportView() {
                 </th>
               </tr>
 
-              {/* ROW 2: AGE & SUB-GROUPS */}
               <tr className="text-[8.5px] text-center font-semibold">
                 <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">10-14 Y/O</th>
                 <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle">15-19 Y/O</th>
@@ -1166,7 +1160,6 @@ export function MonthlyReportView() {
                 <th rowSpan={2} className="border border-slate-800 p-0.5 align-middle bg-slate-800/80 text-blue-300">F</th>
               </tr>
 
-              {/* ROW 3: M/F GENDER BREAKDOWN FOR SCHOOL AGE ONLY */}
               <tr className="text-[8px] text-center font-bold text-slate-400">
                 <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
                 <th className="border border-slate-800 px-1">M</th><th className="border border-slate-800 px-1">F</th>
@@ -1185,7 +1178,7 @@ export function MonthlyReportView() {
             </thead>
 
             <tbody className="divide-y divide-slate-800 text-slate-300 text-center">
-              {/* SECTION 1: ATTENDANCE & EXAMINATION */}
+              {/* ATTENDANCE & EXAMINATION */}
               <MatrixRow label="NO. OF PERSON ATTENDED" m={counts} />
               <MatrixRow label="NO. OF PERSON EXAMINED" m={examinedCounts} />
 
@@ -1205,7 +1198,7 @@ export function MonthlyReportView() {
               <MatrixRow label="10. Total No. with Blood Transfusion" m={medHistory.transfusion} />
               <MatrixRow label="11. Total No. with Tattoo" m={medHistory.tattoo} />
 
-              {/* SECTION B: DIETARY / SOCIAL HISTORY STATUS */}
+              {/* SECTION B: DIETARY / SOCIAL HISTORY */}
               <tr className="bg-slate-950 font-bold text-blue-400 text-left">
                 <td colSpan={43} className="p-1 border border-slate-800 uppercase">B. DIETARY / SOCIAL HISTORY STATUS</td>
               </tr>
@@ -1225,12 +1218,10 @@ export function MonthlyReportView() {
               <MatrixRow label="5. Total No. with Calculus" m={oralHealth.calculus} />
               <MatrixRow label="6. Total No. with Dento-Facial Anomalies (cleft lip/palate, etc.)" m={oralHealth.dentoFacialAnomalies} />
               
-              {/* ITEM 7: TOTAL (df) T METRICS */}
               <MatrixRow label="7. Total (df) T" m={dmfDfCounts.totalDf} />
               <MatrixRow label="  a. Total decayed (d)" m={dmfDfCounts.tempDecayed} />
               <MatrixRow label="  b. Total filled (f)" m={dmfDfCounts.tempFilled} />
 
-              {/* ITEM 8: TOTAL (DMF) T METRICS */}
               <MatrixRow label="8. Total (DMF) T" m={dmfDfCounts.totalDmf} />
               <MatrixRow label="  a. Total Decayed (D)" m={dmfDfCounts.permDecayed} />
               <MatrixRow label="  b. Total Missing (M)" m={dmfDfCounts.permMissing} />
@@ -1273,7 +1264,6 @@ export function MonthlyReportView() {
               <MatrixRow label="TOTAL PATIENTS GIVEN BOHC" m={bohcStatus.totalBohc} />
               <MatrixRow label="  NHTS" m={bohcStatus.nhts} />
               <MatrixRow label="  NON-NHTS" m={bohcStatus.nonNhts} />
-
             </tbody>
           </table>
         </div>
