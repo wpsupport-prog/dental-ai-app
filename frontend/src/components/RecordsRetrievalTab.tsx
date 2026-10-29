@@ -1,46 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 
-import RecordOfServicesRendered, { type ServiceRenderedRow } from './RecordOfServicesRendered';
+import RecordOfServicesRendered from "./RecordOfServicesRendered";
 
-// Combine all icon imports into a single line:
-import { 
-  Search, 
-  RefreshCw, 
-  User, 
-  ShieldCheck, 
-  HeartPulse, 
-  Stethoscope, 
-  Activity, 
-  Utensils, 
-  ChevronDown, 
-  ChevronUp, 
-  Edit2, 
-  Save, 
-  X, 
-  Check, 
-  Plus, 
-  Trash2 
-} from 'lucide-react';
+// Combine all icon imports into a single line (Added Printer):
+import {
+  Search,
+  RefreshCw,
+  User,
+  ShieldCheck,
+  HeartPulse,
+  Stethoscope,
+  Activity,
+  Utensils,
+  ChevronDown,
+  ChevronUp,
+  Edit2,
+  Save,
+  X,
+  Check,
+  Plus,
+  Trash2,
+  Printer,
+} from "lucide-react";
 
-import axios from 'axios';
-import DentalChart from './DentalChart';
-import { filterPatientRecords } from '../utils/recordFilters';
-import OralHealthConditionSummary from './OralHealthConditionSummary';
+import axios from "axios";
+import DentalChart from "./DentalChart";
+import { filterPatientRecords } from "../utils/recordFilters";
+import OralHealthConditionSummary from "./OralHealthConditionSummary";
 
-import ServicesMonitoringChart from './ServicesMonitoringChart';
+import ServicesMonitoringChart from "./ServicesMonitoringChart";
 
-import DeleteConfirmationModal from './DeleteConfirmationModal';
+import DeleteConfirmationModal from "./DeleteConfirmationModal";
 
 // Local PC system date & time helper
 const getLocalPCDateTime = () => {
   const now = new Date();
   return now.toLocaleString(undefined, {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
     hour12: true,
   });
 };
@@ -48,22 +49,34 @@ const getLocalPCDateTime = () => {
 // Convert number index to Roman numerals for return visit chart headers
 const getRomanNumeral = (num: number): string => {
   const lookup: { [key: string]: number } = {
-    M: 1000, CM: 900, D: 500, CD: 400, C: 100, XC: 90, L: 50, XL: 40, X: 10, IX: 9, V: 5, IV: 4, I: 1
+    M: 1000,
+    CM: 900,
+    D: 500,
+    CD: 400,
+    C: 100,
+    XC: 90,
+    L: 50,
+    XL: 40,
+    X: 10,
+    IX: 9,
+    V: 5,
+    IV: 4,
+    I: 1,
   };
-  let roman = '';
+  let roman = "";
   for (const i in lookup) {
     while (num >= lookup[i]) {
       roman += i;
       num -= lookup[i];
     }
   }
-  return roman || 'I';
+  return roman || "I";
 };
 
 export const RecordsRetrievalTab: React.FC = () => {
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>("");
   const [expandedRecordId, setExpandedRecordId] = useState<number | null>(null);
 
   // Editing state
@@ -71,45 +84,248 @@ export const RecordsRetrievalTab: React.FC = () => {
   const [editFormData, setEditFormData] = useState<any>({});
   const [saving, setSaving] = useState<boolean>(false);
   const [saveSuccessId, setSaveSuccessId] = useState<number | null>(null);
-  
+
   // -------------------------------------------------------------
   // DELETE RECORD STATE & HANDLERS
   // -------------------------------------------------------------
-  const [selectedDeleteRecord, setSelectedDeleteRecord] = useState<any | null>(null);
+  const [selectedDeleteRecord, setSelectedDeleteRecord] = useState<any | null>(
+    null,
+  );
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<boolean>(false);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
-  
+
   const handleOpenDeleteModal = (rec: any) => {
     setSelectedDeleteRecord(rec);
     setIsDeleteModalOpen(true);
   };
-  
+
   const handleConfirmDelete = async () => {
     if (!selectedDeleteRecord) return;
     setIsDeleting(true);
 
     try {
-      await axios.delete(`http://localhost:8000/api/v1/forms/records/${selectedDeleteRecord.id}`);
+      await axios.delete(
+        `http://localhost:8000/api/v1/forms/records/${selectedDeleteRecord.id}`,
+      );
 
       // Immediately filter out the deleted record locally
-      setRecords((prev) => prev.filter((r) => r.id !== selectedDeleteRecord.id));
+      setRecords((prev) =>
+        prev.filter((r) => r.id !== selectedDeleteRecord.id),
+      );
       setIsDeleteModalOpen(false);
       setSelectedDeleteRecord(null);
     } catch (err: any) {
-      console.error('Error deleting patient record:', err.response?.data || err.message);
-      alert(`Failed to delete record: ${err.response?.data?.detail || 'Database server error'}`);
+      console.error(
+        "Error deleting patient record:",
+        err.response?.data || err.message,
+      );
+      alert(
+        `Failed to delete record: ${err.response?.data?.detail || "Database server error"}`,
+      );
     } finally {
       setIsDeleting(false);
     }
   };
 
+  // 🎯 Human-Readable Formatted Print Record Handler
+  const handlePrintRecord = (record: any) => {
+    const printWindow = window.open("", "_blank", "width=900,height=900");
+    if (!printWindow) return;
+
+    records.map((rec: any) => {
+      if (rec.id === record) {
+        printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Patient Treatment Record - ${rec.surname || ""}, ${rec.first_name || ""}</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              color: #111;
+              line-height: 1.4;
+              margin: 20px;
+              font-size: 12px;
+            }
+            .header {
+              text-align: center;
+              border-bottom: 2px solid #333;
+              padding-bottom: 10px;
+              margin-bottom: 20px;
+            }
+            .header h2 { margin: 0; font-size: 18px; text-transform: uppercase; }
+            .header p { margin: 4px 0 0; color: #555; font-size: 11px; }
+            
+            .section-title {
+              background: #f0f0f0;
+              font-weight: bold;
+              text-transform: uppercase;
+              padding: 6px 10px;
+              margin: 15px 0 8px 0;
+              border-left: 4px solid #0056b3;
+              font-size: 11px;
+            }
+            
+            .grid-4 {
+              display: grid;
+              grid-template-columns: repeat(4, 1fr);
+              gap: 8px 12px;
+              margin-bottom: 10px;
+            }
+            .grid-2 {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 8px 12px;
+            }
+            .grid-5 {
+              display: grid;
+              grid-template-columns: repeat(5, 1fr);
+              gap: 8px;
+            }
+            
+            .field-box {
+              background: #fafafa;
+              border: 1px solid #ddd;
+              padding: 6px 8px;
+              border-radius: 4px;
+            }
+            .label {
+              font-size: 10px;
+              color: #666;
+              text-transform: uppercase;
+              display: block;
+              margin-bottom: 2px;
+            }
+            .value {
+              font-weight: bold;
+              color: #111;
+            }
+            
+            .checkbox-group {
+              display: flex;
+              flex-wrap: wrap;
+              gap: 15px;
+              background: #fafafa;
+              border: 1px solid #ddd;
+              padding: 10px;
+              border-radius: 4px;
+            }
+            .checkbox-item {
+              display: flex;
+              align-items: center;
+              gap: 5px;
+            }
+            
+            @media print {
+              body { margin: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h2>Dental AI Intake Suite - Patient Record</h2>
+            <p>Document ID: ${rec.document_id || "N/A"} | Generated on: ${new Date().toLocaleString()}</p>
+          </div>
+
+          <!-- Personal Information -->
+          <div class="section-title">1. Personal Information</div>
+          <div class="grid-4">
+            <div class="field-box"><span class="label">Surname</span><span class="value">${rec.surname || "N/A"}</span></div>
+            <div class="field-box"><span class="label">First Name</span><span class="value">${rec.first_name || "N/A"}</span></div>
+            <div class="field-box"><span class="label">Middle Name</span><span class="value">${rec.middle_initial || "N/A"}</span></div>
+            <div class="field-box"><span class="label">Civil Status</span><span class="value">${rec.civil_status || "N/A"}</span></div>
+            
+            <div class="field-box"><span class="label">Date of Birth</span><span class="value">${rec.dob || "N/A"}</span></div>
+            <div class="field-box"><span class="label">Age</span><span class="value">${rec.age || "N/A"}</span></div>
+            <div class="field-box"><span class="label">Sex</span><span class="value">${rec.sex || "N/A"}</span></div>
+            <div class="field-box"><span class="label">Place of Birth</span><span class="value">${rec.place_of_birth || "N/A"}</span></div>
+            
+            <div class="field-box" style="grid-column: span 2;"><span class="label">Address</span><span class="value">${rec.address || "N/A"}</span></div>
+            <div class="field-box"><span class="label">Occupation</span><span class="value">${rec.occupation || "N/A"}</span></div>
+            <div class="field-box"><span class="label">Contact No.</span><span class="value">${rec.contact_no || "N/A"}</span></div>
+            
+            <div class="field-box"><span class="label">Parent / Guardian</span><span class="value">${rec.parent_guardian || "N/A"}</span></div>
+            <div class="field-box"><span class="label">PhilHealth No.</span><span class="value">${rec.philhealth_no || "N/A"}</span></div>
+            <div class="field-box"><span class="label">Yakap Provider</span><span class="value">${rec.yakap_provider || "N/A"}</span></div>
+            <div class="field-box"><span class="label">Signed Name</span><span class="value">${rec.signed_name || "N/A"}</span></div>
+          </div>
+
+          <!-- Memberships & Vitals -->
+          <div class="grid-2">
+            <div>
+              <div class="section-title" style="margin-top: 0;">2. Memberships</div>
+              <div class="checkbox-group">
+                <div class="checkbox-item"><span>[${rec.nhts_pr ? "X" : " "}]</span> NHTS-PR</div>
+                <div class="checkbox-item"><span>[${rec.four_ps ? "X" : " "}]</span> 4Ps</div>
+                <div class="checkbox-item"><span>[${rec.indigenous_people ? "X" : " "}]</span> IP</div>
+                <div class="checkbox-item"><span>[${rec.pwds ? "X" : " "}]</span> PWD</div>
+              </div>
+            </div>
+
+            <div>
+              <div class="section-title" style="margin-top: 0;">3. Vital Signs</div>
+              <div class="grid-5" style="background: #fafafa; border: 1px solid #ddd; padding: 9px; border-radius: 4px;">
+                <div style="text-align: center;"><span class="label">BP</span><span class="value">${rec.blood_pressure || "N/A"}</span></div>
+                <div style="text-align: center;"><span class="label">Pulse</span><span class="value">${rec.pulse_rate || "N/A"}</span></div>
+                <div style="text-align: center;"><span class="label">Temp</span><span class="value">${rec.temperature ? rec.temperature + "°C" : "N/A"}</span></div>
+                <div style="text-align: center;"><span class="label">Height</span><span class="value">${rec.height || "N/A"}</span></div>
+                <div style="text-align: center;"><span class="label">Weight</span><span class="value">${rec.weight || "N/A"}</span></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Medical History -->
+          <div class="section-title">4. Medical History</div>
+          <div class="checkbox-group">
+            <div class="checkbox-item"><span>[${rec.allergies_checked ? "X" : " "}]</span> Allergies: <strong>${rec.allergies_specified || "None"}</strong></div>
+            <div class="checkbox-item"><span>[${rec.hypertension_cva ? "X" : " "}]</span> Hypertension / CVA</div>
+            <div class="checkbox-item"><span>[${rec.diabetes_mellitus ? "X" : " "}]</span> Diabetes Mellitus</div>
+            <div class="checkbox-item"><span>[${rec.blood_disorder ? "X" : " "}]</span> Blood Disorders</div>
+            <div class="checkbox-item"><span>[${rec.cardiovascular_heart_diseases ? "X" : " "}]</span> Cardiovascular</div>
+            <div class="checkbox-item"><span>[${rec.thyroid_disorders ? "X" : " "}]</span> Thyroid Disorders</div>
+            <div class="checkbox-item"><span>[${rec.hepatitis_checked ? "X" : " "}]</span> Hepatitis: <strong>${rec.hepatitis_specified || "None"}</strong></div>
+            <div class="checkbox-item"><span>[${rec.malignancy_checked ? "X" : " "}]</span> Malignancy: <strong>${rec.malignancy_specified || "None"}</strong></div>
+          </div>
+
+          <!-- Hospitalization & Social History -->
+          <div class="grid-2">
+            <div>
+              <div class="section-title">5. Previous Hospitalization</div>
+              <div class="field-box" style="margin-bottom: 5px;"><span class="label">Medical Admission</span><span class="value">${rec.medical_hospitalization_checked ? rec.medical_hospitalization_specified || "Yes" : "None"}</span></div>
+              <div class="field-box" style="margin-bottom: 5px;"><span class="label">Surgical (Post-Op)</span><span class="value">${rec.surgical_checked ? rec.surgical_specified || "Yes" : "None"}</span></div>
+              <div class="field-box"><span class="label">Blood Transfusion / Tattoo / Others</span><span class="value">${rec.blood_transfusion_specified || rec.tattoo_specified || rec.others_specified || "None"}</span></div>
+            </div>
+
+            <div>
+              <div class="section-title">6. Dietary Habits / Social History</div>
+              <div class="field-box" style="margin-bottom: 5px;"><span class="label">Sugar Beverages / Food</span><span class="value">${rec.sugar_beverages_checked ? rec.sugar_beverages_specified || "Yes" : "No"}</span></div>
+              <div class="field-box" style="margin-bottom: 5px;"><span class="label">Use of Alcohol</span><span class="value">${rec.use_alcohol_checked ? rec.use_alcohol_specified || "Yes" : "No"}</span></div>
+              <div class="field-box"><span class="label">Tobacco / Betel Nut</span><span class="value">${rec.use_tobacco_checked || rec.betel_nut_checked ? "Yes" : "No"}</span></div>
+            </div>
+          </div>
+
+          <script>
+            setTimeout(() => {
+              window.print();
+              window.close();
+            }, 500);
+          </script>
+        </body>
+      </html>
+    `);
+        printWindow.document.close();
+      }
+    });
+  };
+
   const fetchRecords = async () => {
     setLoading(true);
     try {
-      const res = await axios.get('http://localhost:8000/api/v1/forms/records');
+      const res = await axios.get("http://localhost:8000/api/v1/forms/records");
       setRecords(res.data || []);
     } catch (err) {
-      console.error('Error fetching patient records:', err);
+      console.error("Error fetching patient records:", err);
     } finally {
       setLoading(false);
     }
@@ -130,7 +346,7 @@ export const RecordsRetrievalTab: React.FC = () => {
 
     // Ensure dental_chart is parsed properly as an array
     let currentVisits = rec.dental_chart;
-    if (typeof currentVisits === 'string') {
+    if (typeof currentVisits === "string") {
       try {
         currentVisits = JSON.parse(currentVisits);
       } catch {
@@ -141,8 +357,8 @@ export const RecordsRetrievalTab: React.FC = () => {
     if (!Array.isArray(currentVisits) || currentVisits.length === 0) {
       currentVisits = [
         {
-          id: 'visit-1',
-          visitLabel: 'Year I',
+          id: "visit-1",
+          visitLabel: "Year I",
           visitDate: getLocalPCDateTime(),
           chartData: {},
         },
@@ -166,7 +382,9 @@ export const RecordsRetrievalTab: React.FC = () => {
 
   // Modular handler to append a new patient return visit chart log
   const handleAddReturnVisit = () => {
-    const currentVisits = Array.isArray(editFormData.dental_chart) ? editFormData.dental_chart : [];
+    const currentVisits = Array.isArray(editFormData.dental_chart)
+      ? editFormData.dental_chart
+      : [];
     const newVisitIndex = currentVisits.length + 1;
     const romanLabel = `Year ${getRomanNumeral(newVisitIndex)}`;
 
@@ -178,17 +396,26 @@ export const RecordsRetrievalTab: React.FC = () => {
     };
 
     const updatedVisits = [newVisit, ...currentVisits]; // Prepend new visit log
-    handleFieldChange('dental_chart', updatedVisits);
+    handleFieldChange("dental_chart", updatedVisits);
   };
 
   const saveRecordUpdate = async (id: number) => {
     setSaving(true);
     try {
       // Strip read-only metadata properties before sending JSON payload
-      const { id: _, document_id, created_at, updated_at, ...cleanPayload } = editFormData;
+      const {
+        id: _,
+        document_id,
+        created_at,
+        updated_at,
+        ...cleanPayload
+      } = editFormData;
 
-      await axios.put(`http://localhost:8000/api/v1/forms/records/${id}`, cleanPayload);
-      
+      await axios.put(
+        `http://localhost:8000/api/v1/forms/records/${id}`,
+        cleanPayload,
+      );
+
       setSaveSuccessId(id);
       setEditingRecordId(null);
       await fetchRecords();
@@ -197,8 +424,13 @@ export const RecordsRetrievalTab: React.FC = () => {
         setSaveSuccessId(null);
       }, 3000);
     } catch (err: any) {
-      console.error('Error updating patient record:', err.response?.data || err.message);
-      alert(`Failed to update record in database: ${err.response?.data?.detail || 'Server error'}`);
+      console.error(
+        "Error updating patient record:",
+        err.response?.data || err.message,
+      );
+      alert(
+        `Failed to update record in database: ${err.response?.data?.detail || "Server error"}`,
+      );
     } finally {
       setSaving(false);
     }
@@ -207,48 +439,51 @@ export const RecordsRetrievalTab: React.FC = () => {
   const filteredRecords = filterPatientRecords(records, searchQuery);
 
   return (
-    
-	<div className="space-y-6 relative">
-		  {/* GLOBAL FLOATING EDIT HEADER (PINNED TO TOP OF VIEWPORT) */}
-		  {editingRecordId !== null && (
-			<div className="sticky top-2 z-50 bg-slate-950/95 backdrop-blur-md border border-blue-500/80 p-4 rounded-xl shadow-2xl flex justify-between items-center ring-1 ring-blue-500/50 animate-in fade-in slide-in-from-top-2">
-			  <div className="flex items-center gap-3">
-				<div className="p-2 bg-blue-900/60 border border-blue-600/80 rounded-lg text-blue-400">
-				  <User className="w-5 h-5" />
-				</div>
-				<div>
-				  <div className="flex items-center gap-2">
-					<span className="text-xs font-bold text-amber-400 font-mono uppercase bg-amber-950/80 border border-amber-800/80 px-2 py-0.5 rounded">
-					  Active Editing Mode
-					</span>
-					<span className="text-xs font-mono text-blue-400 font-bold">{editFormData.document_id}</span>
-				  </div>
-				  <h3 className="font-bold text-sm text-slate-100 uppercase tracking-wide mt-1">
-					Editing Record: {editFormData.surname}, {editFormData.first_name} {editFormData.middle_initial}
-				  </h3>
-				</div>
-			  </div>
+    <div className="space-y-6 relative">
+      {/* GLOBAL FLOATING EDIT HEADER (PINNED TO TOP OF VIEWPORT) */}
+      {editingRecordId !== null && (
+        <div className="sticky top-2 z-50 bg-slate-950/95 backdrop-blur-md border border-blue-500/80 p-4 rounded-xl shadow-2xl flex justify-between items-center ring-1 ring-blue-500/50 animate-in fade-in slide-in-from-top-2">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-blue-900/60 border border-blue-600/80 rounded-lg text-blue-400">
+              <User className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-amber-400 font-mono uppercase bg-amber-950/80 border border-amber-800/80 px-2 py-0.5 rounded">
+                  Active Editing Mode
+                </span>
+                <span className="text-xs font-mono text-blue-400 font-bold">
+                  {editFormData.document_id}
+                </span>
+              </div>
+              <h3 className="font-bold text-sm text-slate-100 uppercase tracking-wide mt-1">
+                Editing Record: {editFormData.surname},{" "}
+                {editFormData.first_name} {editFormData.middle_initial}
+              </h3>
+            </div>
+          </div>
 
-			  <div className="flex items-center gap-3">
-				<button
-				  type="button"
-				  onClick={() => saveRecordUpdate(editingRecordId)}
-				  disabled={saving}
-				  className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-950/80 hover:scale-105 active:scale-95"
-				>
-				  <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
-				</button>
-				<button
-				  type="button"
-				  onClick={cancelEditing}
-				  className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs transition cursor-pointer border border-slate-700"
-				>
-				  <X className="w-4 h-4" /> Cancel
-				</button>
-			  </div>
-			</div>
-		  )}
-	
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => saveRecordUpdate(editingRecordId)}
+              disabled={saving}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white px-5 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition cursor-pointer shadow-lg shadow-emerald-950/80 hover:scale-105 active:scale-95"
+            >
+              <Save className="w-4 h-4" />{" "}
+              {saving ? "Saving..." : "Save Changes"}
+            </button>
+            <button
+              type="button"
+              onClick={cancelEditing}
+              className="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-2 rounded-lg text-xs transition cursor-pointer border border-slate-700"
+            >
+              <X className="w-4 h-4" /> Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Search & Action Bar */}
       <div className="flex justify-between items-center bg-slate-950 p-4 rounded-xl border border-slate-800">
         <div className="relative w-96">
@@ -266,16 +501,22 @@ export const RecordsRetrievalTab: React.FC = () => {
           onClick={fetchRecords}
           className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg text-xs font-semibold flex items-center gap-2 border border-slate-700 transition cursor-pointer"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          <RefreshCw
+            className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
+          />
           Refresh Records
         </button>
       </div>
 
       {/* Record Cards List */}
       {loading ? (
-        <div className="text-center py-12 text-slate-500 text-xs">Loading saved records from database...</div>
+        <div className="text-center py-12 text-slate-500 text-xs">
+          Loading saved records from database...
+        </div>
       ) : filteredRecords.length === 0 ? (
-        <div className="text-center py-12 text-slate-500 text-xs">No matching patient records found in registry.</div>
+        <div className="text-center py-12 text-slate-500 text-xs">
+          No matching patient records found in registry.
+        </div>
       ) : (
         <div className="space-y-4">
           {filteredRecords.map((rec) => {
@@ -285,39 +526,41 @@ export const RecordsRetrievalTab: React.FC = () => {
 
             // Safe parsing for dental chart visits
             let displayVisits = data.dental_chart;
-            if (typeof displayVisits === 'string') {
+            if (typeof displayVisits === "string") {
               try {
                 displayVisits = JSON.parse(displayVisits);
               } catch {
                 displayVisits = [];
               }
             }
-			
-			// Safe parsing for Services Monitoring Chart data (Array or Dictionary)
-			let displayServices = data.services_monitoring;
-			if (typeof displayServices === 'string') {
-			  try {
-				displayServices = JSON.parse(displayServices);
-			  } catch {
-				displayServices = [];
-			  }
-			}
-			
-			// Safe parsing for Services Rendered rows
-			let displayServicesRendered = data.record_of_services_rendered;
-			if (typeof displayServicesRendered === 'string') {
-			  try {
-				displayServicesRendered = JSON.parse(displayServicesRendered);
-			  } catch {
-				displayServicesRendered = [];
-			  }
-			}
+
+            // Safe parsing for Services Monitoring Chart data (Array or Dictionary)
+            let displayServices = data.services_monitoring;
+            if (typeof displayServices === "string") {
+              try {
+                displayServices = JSON.parse(displayServices);
+              } catch {
+                displayServices = [];
+              }
+            }
+
+            // Safe parsing for Services Rendered rows
+            let displayServicesRendered = data.record_of_services_rendered;
+            if (typeof displayServicesRendered === "string") {
+              try {
+                displayServicesRendered = JSON.parse(displayServicesRendered);
+              } catch {
+                displayServicesRendered = [];
+              }
+            }
 
             return (
               <div
                 key={rec.id}
                 className={`bg-slate-950 border rounded-xl transition relative ${
-                  isEditing ? 'border-blue-500 ring-1 ring-blue-500/50' : 'border-slate-800'
+                  isEditing
+                    ? "border-blue-500 ring-1 ring-blue-500/50"
+                    : "border-slate-800"
                 }`}
               >
                 {/* FIXED / STICKY HEADER BAR DURING SCROLL */}
@@ -334,17 +577,31 @@ export const RecordsRetrievalTab: React.FC = () => {
                         {rec.surname}, {rec.first_name} {rec.middle_initial}
                       </h3>
                       <p className="text-xs text-slate-400 font-mono mt-0.5">
-                        DOB: {rec.dob || 'N/A'} | Age/Sex: {rec.age} / {rec.sex} | Address: {rec.address || 'N/A'}
+                        DOB: {rec.dob || "N/A"} | Age/Sex: {rec.age} / {rec.sex}{" "}
+                        | Address: {rec.address || "N/A"}
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="flex items-center gap-3"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {saveSuccessId === rec.id && (
                       <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1 bg-emerald-950/60 border border-emerald-800 px-2.5 py-1 rounded">
                         <Check className="w-3.5 h-3.5" /> Updated
                       </span>
                     )}
+
+                    {/* PRINT BUTTON */}
+                    <button
+                      type="button"
+                      onClick={() => handlePrintRecord(rec.id)}
+                      title="Print Record"
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" /> Print
+                    </button>
 
                     {!isEditing ? (
                       <button
@@ -360,7 +617,8 @@ export const RecordsRetrievalTab: React.FC = () => {
                           disabled={saving}
                           className="bg-emerald-600 hover:bg-emerald-500 text-white px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-lg shadow-emerald-950/50 hover:scale-105 active:scale-95"
                         >
-                          <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Changes'}
+                          <Save className="w-4 h-4" />{" "}
+                          {saving ? "Saving..." : "Save Changes"}
                         </button>
                         <button
                           onClick={cancelEditing}
@@ -374,8 +632,8 @@ export const RecordsRetrievalTab: React.FC = () => {
                     <span className="text-[10px] bg-blue-950 text-blue-300 border border-blue-800 px-2.5 py-1 rounded-md font-mono">
                       {rec.document_id}
                     </span>
-					
-					<button
+
+                    <button
                       type="button"
                       onClick={() => handleOpenDeleteModal(rec)}
                       title="Delete Record"
@@ -384,116 +642,175 @@ export const RecordsRetrievalTab: React.FC = () => {
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
 
-                    <button onClick={() => toggleExpand(rec.id)} className="text-slate-400 p-1">
-                      {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                    <button
+                      onClick={() => toggleExpand(rec.id)}
+                      className="text-slate-400 p-1"
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="w-4 h-4" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
                     </button>
                   </div>
                 </div>
 
-                {/* Expanded Detailed Field View */}
+                {/* Expanded Detailed Field View (Assigned ID for Targeted Printing) */}
                 {isExpanded && (
-                  <div className="p-6 border-t border-slate-800/80 bg-slate-900/40 space-y-6">
-                    
+                  <div
+                    id={`record-print-${rec.id}`}
+                    className="p-6 border-t border-slate-800/80 bg-slate-900/40 space-y-6"
+                  >
                     {/* 1. Demographics & Personal Information */}
                     <div className="space-y-3">
                       <div className="flex items-center justify-between border-b border-slate-800/80 pb-1">
                         <span className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
                           <User className="w-4 h-4" /> Personal Information
                         </span>
-                        {isEditing && <span className="text-[11px] text-amber-400 font-mono">Editing Mode Active</span>}
+                        {isEditing && (
+                          <span className="text-[11px] text-amber-400 font-mono">
+                            Editing Mode Active
+                          </span>
+                        )}
                       </div>
 
                       <div className="grid grid-cols-4 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
                         <div>
-                          <label className="text-slate-400 block mb-1">Surname:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Surname:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.surname || ''}
-                              onChange={(e) => handleFieldChange('surname', e.target.value)}
+                              value={data.surname || ""}
+                              onChange={(e) =>
+                                handleFieldChange("surname", e.target.value)
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100 font-bold">{data.surname || 'N/A'}</p>
+                            <p className="text-slate-100 font-bold">
+                              {data.surname || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">First Name:</label>
+                          <label className="text-slate-400 block mb-1">
+                            First Name:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.first_name || ''}
-                              onChange={(e) => handleFieldChange('first_name', e.target.value)}
+                              value={data.first_name || ""}
+                              onChange={(e) =>
+                                handleFieldChange("first_name", e.target.value)
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100 font-bold">{data.first_name || 'N/A'}</p>
+                            <p className="text-slate-100 font-bold">
+                              {data.first_name || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Middle Name:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Middle Name:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.middle_initial || ''}
-                              onChange={(e) => handleFieldChange('middle_initial', e.target.value)}
+                              value={data.middle_initial || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "middle_initial",
+                                  e.target.value,
+                                )
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100 font-bold">{data.middle_initial || 'N/A'}</p>
+                            <p className="text-slate-100 font-bold">
+                              {data.middle_initial || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Civil Status:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Civil Status:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.civil_status || ''}
-                              onChange={(e) => handleFieldChange('civil_status', e.target.value)}
+                              value={data.civil_status || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "civil_status",
+                                  e.target.value,
+                                )
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100 font-bold">{data.civil_status || 'N/A'}</p>
+                            <p className="text-slate-100 font-bold">
+                              {data.civil_status || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Date of Birth:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Date of Birth:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.dob || ''}
-                              onChange={(e) => handleFieldChange('dob', e.target.value)}
+                              value={data.dob || ""}
+                              onChange={(e) =>
+                                handleFieldChange("dob", e.target.value)
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100">{data.dob || 'N/A'}</p>
+                            <p className="text-slate-100">
+                              {data.dob || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Age:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Age:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.age || ''}
-                              onChange={(e) => handleFieldChange('age', e.target.value)}
+                              value={data.age || ""}
+                              onChange={(e) =>
+                                handleFieldChange("age", e.target.value)
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100">{data.age || 'N/A'}</p>
+                            <p className="text-slate-100">
+                              {data.age || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Sex:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Sex:
+                          </label>
                           {isEditing ? (
                             <select
-                              value={data.sex || ''}
-                              onChange={(e) => handleFieldChange('sex', e.target.value)}
+                              value={data.sex || ""}
+                              onChange={(e) =>
+                                handleFieldChange("sex", e.target.value)
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100 cursor-pointer"
                             >
                               <option value="">Select...</option>
@@ -502,125 +819,191 @@ export const RecordsRetrievalTab: React.FC = () => {
                               <option value="Other">Other</option>
                             </select>
                           ) : (
-                            <p className="text-slate-100">{data.sex || 'N/A'}</p>
+                            <p className="text-slate-100">
+                              {data.sex || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Place of Birth:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Place of Birth:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.place_of_birth || ''}
-                              onChange={(e) => handleFieldChange('place_of_birth', e.target.value)}
+                              value={data.place_of_birth || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "place_of_birth",
+                                  e.target.value,
+                                )
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100">{data.place_of_birth || 'N/A'}</p>
+                            <p className="text-slate-100">
+                              {data.place_of_birth || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Address:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Address:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.address || ''}
-                              onChange={(e) => handleFieldChange('address', e.target.value)}
+                              value={data.address || ""}
+                              onChange={(e) =>
+                                handleFieldChange("address", e.target.value)
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100">{data.address || 'N/A'}</p>
+                            <p className="text-slate-100">
+                              {data.address || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Occupation:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Occupation:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.occupation || ''}
-                              onChange={(e) => handleFieldChange('occupation', e.target.value)}
+                              value={data.occupation || ""}
+                              onChange={(e) =>
+                                handleFieldChange("occupation", e.target.value)
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100">{data.occupation || 'N/A'}</p>
+                            <p className="text-slate-100">
+                              {data.occupation || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Parent / Guardian:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Parent / Guardian:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.parent_guardian || ''}
-                              onChange={(e) => handleFieldChange('parent_guardian', e.target.value)}
+                              value={data.parent_guardian || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "parent_guardian",
+                                  e.target.value,
+                                )
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100">{data.parent_guardian || 'N/A'}</p>
+                            <p className="text-slate-100">
+                              {data.parent_guardian || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Signed Name:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Signed Name:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.signed_name || ''}
-                              onChange={(e) => handleFieldChange('signed_name', e.target.value)}
+                              value={data.signed_name || ""}
+                              onChange={(e) =>
+                                handleFieldChange("signed_name", e.target.value)
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-emerald-400 font-bold"
                             />
                           ) : (
-                            <p className="text-emerald-400 font-bold">{data.signed_name || 'N/A'}</p>
+                            <p className="text-emerald-400 font-bold">
+                              {data.signed_name || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">PhilHealth No:</label>
+                          <label className="text-slate-400 block mb-1">
+                            PhilHealth No:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.philhealth_no || ''}
-                              onChange={(e) => handleFieldChange('philhealth_no', e.target.value)}
+                              value={data.philhealth_no || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "philhealth_no",
+                                  e.target.value,
+                                )
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-blue-300 font-mono"
                             />
                           ) : (
-                            <p className="text-blue-300 font-mono">{data.philhealth_no || 'N/A'}</p>
+                            <p className="text-blue-300 font-mono">
+                              {data.philhealth_no || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Yakap Provider:</label>
+                          <label className="text-slate-400 block mb-1">
+                            Yakap Provider:
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.yakap_provider || ''}
-                              onChange={(e) => handleFieldChange('yakap_provider', e.target.value)}
+                              value={data.yakap_provider || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "yakap_provider",
+                                  e.target.value,
+                                )
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                             />
                           ) : (
-                            <p className="text-slate-100">{data.yakap_provider || 'N/A'}</p>
+                            <p className="text-slate-100">
+                              {data.yakap_provider || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">CP NO. (Contact):</label>
+                          <label className="text-slate-400 block mb-1">
+                            CP NO. (Contact):
+                          </label>
                           {isEditing ? (
                             <input
                               type="text"
-                              value={data.contact_no || ''}
-                              onChange={(e) => handleFieldChange('contact_no', e.target.value)}
+                              value={data.contact_no || ""}
+                              onChange={(e) =>
+                                handleFieldChange("contact_no", e.target.value)
+                              }
                               className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-blue-400 font-mono"
                             />
                           ) : (
-                            <p className="text-blue-400 font-mono">{data.contact_no || 'N/A'}</p>
+                            <p className="text-blue-400 font-mono">
+                              {data.contact_no || "N/A"}
+                            </p>
                           )}
                         </div>
 
                         <div>
-                          <label className="text-slate-400 block mb-1">Record Created:</label>
-                          <p className="text-slate-400 font-mono">{data.created_at || 'N/A'}</p>
+                          <label className="text-slate-400 block mb-1">
+                            Record Created:
+                          </label>
+                          <p className="text-slate-400 font-mono">
+                            {data.created_at || "N/A"}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -638,7 +1021,9 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.nhts_pr}
-                              onChange={(e) => handleFieldChange('nhts_pr', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange("nhts_pr", e.target.checked)
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
                             <span className="text-slate-300">NHTS-PR</span>
@@ -649,7 +1034,9 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.four_ps}
-                              onChange={(e) => handleFieldChange('four_ps', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange("four_ps", e.target.checked)
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
                             <span className="text-slate-300">4Ps</span>
@@ -660,10 +1047,17 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.indigenous_people}
-                              onChange={(e) => handleFieldChange('indigenous_people', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "indigenous_people",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
-                            <span className="text-slate-300">Indigenous (IP)</span>
+                            <span className="text-slate-300">
+                              Indigenous (IP)
+                            </span>
                           </label>
 
                           <label className="flex items-center gap-2 cursor-pointer">
@@ -671,7 +1065,9 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.pwds}
-                              onChange={(e) => handleFieldChange('pwds', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange("pwds", e.target.checked)
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
                             <span className="text-slate-300">PWDs</span>
@@ -686,72 +1082,113 @@ export const RecordsRetrievalTab: React.FC = () => {
                         </div>
                         <div className="grid grid-cols-5 gap-2 text-xs bg-slate-900/70 p-3.5 rounded-lg border border-slate-800/80 font-mono">
                           <div>
-                            <label className="text-slate-400 block mb-1">BP:</label>
+                            <label className="text-slate-400 block mb-1">
+                              BP:
+                            </label>
                             {isEditing ? (
                               <input
                                 type="text"
-                                value={data.blood_pressure || ''}
-                                onChange={(e) => handleFieldChange('blood_pressure', e.target.value)}
+                                value={data.blood_pressure || ""}
+                                onChange={(e) =>
+                                  handleFieldChange(
+                                    "blood_pressure",
+                                    e.target.value,
+                                  )
+                                }
                                 className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                               />
                             ) : (
-                              <p className="text-slate-100 font-bold">{data.blood_pressure || 'N/A'}</p>
+                              <p className="text-slate-100 font-bold">
+                                {data.blood_pressure || "N/A"}
+                              </p>
                             )}
                           </div>
 
                           <div>
-                            <label className="text-slate-400 block mb-1">Pulse:</label>
+                            <label className="text-slate-400 block mb-1">
+                              Pulse:
+                            </label>
                             {isEditing ? (
                               <input
                                 type="text"
-                                value={data.pulse_rate || ''}
-                                onChange={(e) => handleFieldChange('pulse_rate', e.target.value)}
+                                value={data.pulse_rate || ""}
+                                onChange={(e) =>
+                                  handleFieldChange(
+                                    "pulse_rate",
+                                    e.target.value,
+                                  )
+                                }
                                 className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                               />
                             ) : (
-                              <p className="text-slate-100 font-bold">{data.pulse_rate || 'N/A'}</p>
+                              <p className="text-slate-100 font-bold">
+                                {data.pulse_rate || "N/A"}
+                              </p>
                             )}
                           </div>
 
                           <div>
-                            <label className="text-slate-400 block mb-1">Temp (°C):</label>
+                            <label className="text-slate-400 block mb-1">
+                              Temp (°C):
+                            </label>
                             {isEditing ? (
                               <input
                                 type="text"
-                                value={data.temperature || ''}
-                                onChange={(e) => handleFieldChange('temperature', e.target.value)}
+                                value={data.temperature || ""}
+                                onChange={(e) =>
+                                  handleFieldChange(
+                                    "temperature",
+                                    e.target.value,
+                                  )
+                                }
                                 className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                               />
                             ) : (
-                              <p className="text-slate-100 font-bold">{data.temperature ? `${data.temperature} °C` : 'N/A'}</p>
+                              <p className="text-slate-100 font-bold">
+                                {data.temperature
+                                  ? `${data.temperature} °C`
+                                  : "N/A"}
+                              </p>
                             )}
                           </div>
 
                           <div>
-                            <label className="text-slate-400 block mb-1">HT (Height):</label>
+                            <label className="text-slate-400 block mb-1">
+                              HT (Height):
+                            </label>
                             {isEditing ? (
                               <input
                                 type="text"
-                                value={data.height || ''}
-                                onChange={(e) => handleFieldChange('height', e.target.value)}
+                                value={data.height || ""}
+                                onChange={(e) =>
+                                  handleFieldChange("height", e.target.value)
+                                }
                                 className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                               />
                             ) : (
-                              <p className="text-slate-100 font-bold">{data.height || 'N/A'}</p>
+                              <p className="text-slate-100 font-bold">
+                                {data.height || "N/A"}
+                              </p>
                             )}
                           </div>
 
                           <div>
-                            <label className="text-slate-400 block mb-1">WT (Weight):</label>
+                            <label className="text-slate-400 block mb-1">
+                              WT (Weight):
+                            </label>
                             {isEditing ? (
                               <input
                                 type="text"
-                                value={data.weight || ''}
-                                onChange={(e) => handleFieldChange('weight', e.target.value)}
+                                value={data.weight || ""}
+                                onChange={(e) =>
+                                  handleFieldChange("weight", e.target.value)
+                                }
                                 className="w-full bg-slate-950 border border-slate-700 rounded px-2 py-1 text-slate-100"
                               />
                             ) : (
-                              <p className="text-slate-100 font-bold">{data.weight || 'N/A'}</p>
+                              <p className="text-slate-100 font-bold">
+                                {data.weight || "N/A"}
+                              </p>
                             )}
                           </div>
                         </div>
@@ -771,7 +1208,12 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.allergies_checked}
-                              onChange={(e) => handleFieldChange('allergies_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "allergies_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
                             <span className="text-slate-300">Allergies:</span>
@@ -780,12 +1222,21 @@ export const RecordsRetrievalTab: React.FC = () => {
                             <input
                               type="text"
                               placeholder="Specified details..."
-                              value={data.allergies_specified || ''}
-                              onChange={(e) => handleFieldChange('allergies_specified', e.target.value)}
+                              value={data.allergies_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "allergies_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.allergies_checked ? (data.allergies_specified || 'Yes') : 'No'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.allergies_checked
+                                ? data.allergies_specified || "Yes"
+                                : "No"}
+                            </p>
                           )}
                         </div>
 
@@ -794,10 +1245,17 @@ export const RecordsRetrievalTab: React.FC = () => {
                             type="checkbox"
                             disabled={!isEditing}
                             checked={!!data.hypertension_cva}
-                            onChange={(e) => handleFieldChange('hypertension_cva', e.target.checked)}
+                            onChange={(e) =>
+                              handleFieldChange(
+                                "hypertension_cva",
+                                e.target.checked,
+                              )
+                            }
                             className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                           />
-                          <span className="text-slate-300">Hypertension / CVA</span>
+                          <span className="text-slate-300">
+                            Hypertension / CVA
+                          </span>
                         </label>
 
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -805,10 +1263,17 @@ export const RecordsRetrievalTab: React.FC = () => {
                             type="checkbox"
                             disabled={!isEditing}
                             checked={!!data.diabetes_mellitus}
-                            onChange={(e) => handleFieldChange('diabetes_mellitus', e.target.checked)}
+                            onChange={(e) =>
+                              handleFieldChange(
+                                "diabetes_mellitus",
+                                e.target.checked,
+                              )
+                            }
                             className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                           />
-                          <span className="text-slate-300">Diabetes Mellitus</span>
+                          <span className="text-slate-300">
+                            Diabetes Mellitus
+                          </span>
                         </label>
 
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -816,10 +1281,17 @@ export const RecordsRetrievalTab: React.FC = () => {
                             type="checkbox"
                             disabled={!isEditing}
                             checked={!!data.blood_disorder}
-                            onChange={(e) => handleFieldChange('blood_disorder', e.target.checked)}
+                            onChange={(e) =>
+                              handleFieldChange(
+                                "blood_disorder",
+                                e.target.checked,
+                              )
+                            }
                             className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                           />
-                          <span className="text-slate-300">Blood Disorders</span>
+                          <span className="text-slate-300">
+                            Blood Disorders
+                          </span>
                         </label>
 
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -827,10 +1299,17 @@ export const RecordsRetrievalTab: React.FC = () => {
                             type="checkbox"
                             disabled={!isEditing}
                             checked={!!data.cardiovascular_heart_diseases}
-                            onChange={(e) => handleFieldChange('cardiovascular_heart_diseases', e.target.checked)}
+                            onChange={(e) =>
+                              handleFieldChange(
+                                "cardiovascular_heart_diseases",
+                                e.target.checked,
+                              )
+                            }
                             className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                           />
-                          <span className="text-slate-300">Cardiovascular / Heart</span>
+                          <span className="text-slate-300">
+                            Cardiovascular / Heart
+                          </span>
                         </label>
 
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -838,10 +1317,17 @@ export const RecordsRetrievalTab: React.FC = () => {
                             type="checkbox"
                             disabled={!isEditing}
                             checked={!!data.thyroid_disorders}
-                            onChange={(e) => handleFieldChange('thyroid_disorders', e.target.checked)}
+                            onChange={(e) =>
+                              handleFieldChange(
+                                "thyroid_disorders",
+                                e.target.checked,
+                              )
+                            }
                             className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                           />
-                          <span className="text-slate-300">Thyroid Disorders</span>
+                          <span className="text-slate-300">
+                            Thyroid Disorders
+                          </span>
                         </label>
 
                         {/* Hepatitis */}
@@ -851,7 +1337,12 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.hepatitis_checked}
-                              onChange={(e) => handleFieldChange('hepatitis_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "hepatitis_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
                             <span className="text-slate-300">Hepatitis:</span>
@@ -860,12 +1351,21 @@ export const RecordsRetrievalTab: React.FC = () => {
                             <input
                               type="text"
                               placeholder="Type specified..."
-                              value={data.hepatitis_specified || ''}
-                              onChange={(e) => handleFieldChange('hepatitis_specified', e.target.value)}
+                              value={data.hepatitis_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "hepatitis_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.hepatitis_checked ? (data.hepatitis_specified || 'Yes') : 'No'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.hepatitis_checked
+                                ? data.hepatitis_specified || "Yes"
+                                : "No"}
+                            </p>
                           )}
                         </div>
 
@@ -876,7 +1376,12 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.malignancy_checked}
-                              onChange={(e) => handleFieldChange('malignancy_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "malignancy_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
                             <span className="text-slate-300">Malignancy:</span>
@@ -885,12 +1390,21 @@ export const RecordsRetrievalTab: React.FC = () => {
                             <input
                               type="text"
                               placeholder="Details specified..."
-                              value={data.malignancy_specified || ''}
-                              onChange={(e) => handleFieldChange('malignancy_specified', e.target.value)}
+                              value={data.malignancy_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "malignancy_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.malignancy_checked ? (data.malignancy_specified || 'Yes') : 'No'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.malignancy_checked
+                                ? data.malignancy_specified || "Yes"
+                                : "No"}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -899,7 +1413,8 @@ export const RecordsRetrievalTab: React.FC = () => {
                     {/* 4. History of Hospitalization */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
-                        <Activity className="w-4 h-4" /> History of Previous Hospitalization
+                        <Activity className="w-4 h-4" /> History of Previous
+                        Hospitalization
                       </div>
                       <div className="grid grid-cols-1 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
                         {/* Medical Admission */}
@@ -909,21 +1424,40 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.medical_hospitalization_checked}
-                              onChange={(e) => handleFieldChange('medical_hospitalization_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "medical_hospitalization_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
-                            <span className="text-slate-300">Medical (Last Admission & Cause):</span>
+                            <span className="text-slate-300">
+                              Medical (Last Admission & Cause):
+                            </span>
                           </label>
                           {isEditing ? (
                             <input
                               type="text"
                               placeholder="Details..."
-                              value={data.medical_hospitalization_specified || ''}
-                              onChange={(e) => handleFieldChange('medical_hospitalization_specified', e.target.value)}
+                              value={
+                                data.medical_hospitalization_specified || ""
+                              }
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "medical_hospitalization_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.medical_hospitalization_checked ? (data.medical_hospitalization_specified || 'Yes') : 'None'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.medical_hospitalization_checked
+                                ? data.medical_hospitalization_specified ||
+                                  "Yes"
+                                : "None"}
+                            </p>
                           )}
                         </div>
 
@@ -934,21 +1468,37 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.surgical_checked}
-                              onChange={(e) => handleFieldChange('surgical_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "surgical_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
-                            <span className="text-slate-300">Surgical (Post-Operative):</span>
+                            <span className="text-slate-300">
+                              Surgical (Post-Operative):
+                            </span>
                           </label>
                           {isEditing ? (
                             <input
                               type="text"
                               placeholder="Details..."
-                              value={data.surgical_specified || ''}
-                              onChange={(e) => handleFieldChange('surgical_specified', e.target.value)}
+                              value={data.surgical_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "surgical_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.surgical_checked ? (data.surgical_specified || 'Yes') : 'None'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.surgical_checked
+                                ? data.surgical_specified || "Yes"
+                                : "None"}
+                            </p>
                           )}
                         </div>
 
@@ -959,21 +1509,37 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.blood_transfusion_checked}
-                              onChange={(e) => handleFieldChange('blood_transfusion_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "blood_transfusion_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
-                            <span className="text-slate-300">Blood Transfusion (Month & Year):</span>
+                            <span className="text-slate-300">
+                              Blood Transfusion (Month & Year):
+                            </span>
                           </label>
                           {isEditing ? (
                             <input
                               type="text"
                               placeholder="Details..."
-                              value={data.blood_transfusion_specified || ''}
-                              onChange={(e) => handleFieldChange('blood_transfusion_specified', e.target.value)}
+                              value={data.blood_transfusion_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "blood_transfusion_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.blood_transfusion_checked ? (data.blood_transfusion_specified || 'Yes') : 'None'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.blood_transfusion_checked
+                                ? data.blood_transfusion_specified || "Yes"
+                                : "None"}
+                            </p>
                           )}
                         </div>
 
@@ -984,7 +1550,12 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.tattoo_checked}
-                              onChange={(e) => handleFieldChange('tattoo_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "tattoo_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
                             <span className="text-slate-300">Tattoo:</span>
@@ -993,12 +1564,21 @@ export const RecordsRetrievalTab: React.FC = () => {
                             <input
                               type="text"
                               placeholder="Details..."
-                              value={data.tattoo_specified || ''}
-                              onChange={(e) => handleFieldChange('tattoo_specified', e.target.value)}
+                              value={data.tattoo_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "tattoo_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.tattoo_checked ? (data.tattoo_specified || 'Yes') : 'None'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.tattoo_checked
+                                ? data.tattoo_specified || "Yes"
+                                : "None"}
+                            </p>
                           )}
                         </div>
 
@@ -1009,21 +1589,37 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.others_checked}
-                              onChange={(e) => handleFieldChange('others_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "others_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
-                            <span className="text-slate-300">Others (Please specify):</span>
+                            <span className="text-slate-300">
+                              Others (Please specify):
+                            </span>
                           </label>
                           {isEditing ? (
                             <input
                               type="text"
                               placeholder="Details..."
-                              value={data.others_specified || ''}
-                              onChange={(e) => handleFieldChange('others_specified', e.target.value)}
+                              value={data.others_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "others_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.others_checked ? (data.others_specified || 'Yes') : 'None'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.others_checked
+                                ? data.others_specified || "Yes"
+                                : "None"}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -1032,7 +1628,8 @@ export const RecordsRetrievalTab: React.FC = () => {
                     {/* 5. Dietary Habits / Social History */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-blue-400 uppercase tracking-wider border-b border-slate-800/80 pb-1">
-                        <Utensils className="w-4 h-4" /> Dietary Habits / Social History
+                        <Utensils className="w-4 h-4" /> Dietary Habits / Social
+                        History
                       </div>
                       <div className="grid grid-cols-1 gap-3 text-xs bg-slate-900/70 p-4 rounded-lg border border-slate-800/80">
                         {/* Sugar Beverages */}
@@ -1042,21 +1639,37 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.sugar_beverages_checked}
-                              onChange={(e) => handleFieldChange('sugar_beverages_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "sugar_beverages_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
-                            <span className="text-slate-300">Sugar Beverages/Food:</span>
+                            <span className="text-slate-300">
+                              Sugar Beverages/Food:
+                            </span>
                           </label>
                           {isEditing ? (
                             <input
                               type="text"
                               placeholder="Amount, Frequency & Duration..."
-                              value={data.sugar_beverages_specified || ''}
-                              onChange={(e) => handleFieldChange('sugar_beverages_specified', e.target.value)}
+                              value={data.sugar_beverages_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "sugar_beverages_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.sugar_beverages_checked ? (data.sugar_beverages_specified || 'Yes') : 'No'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.sugar_beverages_checked
+                                ? data.sugar_beverages_specified || "Yes"
+                                : "No"}
+                            </p>
                           )}
                         </div>
 
@@ -1067,21 +1680,37 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.use_alcohol_checked}
-                              onChange={(e) => handleFieldChange('use_alcohol_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "use_alcohol_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
-                            <span className="text-slate-300">Use of Alcohol:</span>
+                            <span className="text-slate-300">
+                              Use of Alcohol:
+                            </span>
                           </label>
                           {isEditing ? (
                             <input
                               type="text"
                               placeholder="Amount, Frequency & Duration..."
-                              value={data.use_alcohol_specified || ''}
-                              onChange={(e) => handleFieldChange('use_alcohol_specified', e.target.value)}
+                              value={data.use_alcohol_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "use_alcohol_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.use_alcohol_checked ? (data.use_alcohol_specified || 'Yes') : 'No'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.use_alcohol_checked
+                                ? data.use_alcohol_specified || "Yes"
+                                : "No"}
+                            </p>
                           )}
                         </div>
 
@@ -1092,21 +1721,37 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.use_tobacco_checked}
-                              onChange={(e) => handleFieldChange('use_tobacco_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "use_tobacco_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
-                            <span className="text-slate-300">Use of Tobacco:</span>
+                            <span className="text-slate-300">
+                              Use of Tobacco:
+                            </span>
                           </label>
                           {isEditing ? (
                             <input
                               type="text"
                               placeholder="Amount, Frequency & Duration..."
-                              value={data.use_tobacco_specified || ''}
-                              onChange={(e) => handleFieldChange('use_tobacco_specified', e.target.value)}
+                              value={data.use_tobacco_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "use_tobacco_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.use_tobacco_checked ? (data.use_tobacco_specified || 'Yes') : 'No'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.use_tobacco_checked
+                                ? data.use_tobacco_specified || "Yes"
+                                : "No"}
+                            </p>
                           )}
                         </div>
 
@@ -1117,21 +1762,37 @@ export const RecordsRetrievalTab: React.FC = () => {
                               type="checkbox"
                               disabled={!isEditing}
                               checked={!!data.betel_nut_checked}
-                              onChange={(e) => handleFieldChange('betel_nut_checked', e.target.checked)}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "betel_nut_checked",
+                                  e.target.checked,
+                                )
+                              }
                               className="rounded bg-slate-950 border-slate-700 text-blue-600 focus:ring-0"
                             />
-                            <span className="text-slate-300">Betel Nut Chewing:</span>
+                            <span className="text-slate-300">
+                              Betel Nut Chewing:
+                            </span>
                           </label>
                           {isEditing ? (
                             <input
                               type="text"
                               placeholder="Amount, Frequency & Duration..."
-                              value={data.betel_nut_specified || ''}
-                              onChange={(e) => handleFieldChange('betel_nut_specified', e.target.value)}
+                              value={data.betel_nut_specified || ""}
+                              onChange={(e) =>
+                                handleFieldChange(
+                                  "betel_nut_specified",
+                                  e.target.value,
+                                )
+                              }
                               className="col-span-2 bg-slate-950 border border-slate-700 rounded-md p-1.5 text-emerald-400 font-mono text-xs"
                             />
                           ) : (
-                            <p className="col-span-2 text-emerald-400 font-mono">{data.betel_nut_checked ? (data.betel_nut_specified || 'Yes') : 'No'}</p>
+                            <p className="col-span-2 text-emerald-400 font-mono">
+                              {data.betel_nut_checked
+                                ? data.betel_nut_specified || "Yes"
+                                : "No"}
+                            </p>
                           )}
                         </div>
                       </div>
@@ -1141,7 +1802,8 @@ export const RecordsRetrievalTab: React.FC = () => {
                     <div className="space-y-3">
                       <div className="flex justify-between items-center border-b border-slate-800/80 pb-1">
                         <span className="text-xs font-bold text-blue-400 uppercase tracking-wider flex items-center gap-2">
-                          <Stethoscope className="w-4 h-4" /> Oral Health Condition Chart Logs
+                          <Stethoscope className="w-4 h-4" /> Oral Health
+                          Condition Chart Logs
                         </span>
 
                         {/* MODULAR RETURN VISIT BUTTON (ENABLED IN EDIT MODE) */}
@@ -1150,7 +1812,8 @@ export const RecordsRetrievalTab: React.FC = () => {
                             onClick={handleAddReturnVisit}
                             className="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs px-3 py-1 rounded-lg flex items-center gap-1 transition cursor-pointer shadow-sm"
                           >
-                            <Plus className="w-3.5 h-3.5" /> Add Patient Return Visit Chart
+                            <Plus className="w-3.5 h-3.5" /> Add Patient Return
+                            Visit Chart
                           </button>
                         )}
                       </div>
@@ -1161,8 +1824,10 @@ export const RecordsRetrievalTab: React.FC = () => {
                             visits={displayVisits || []}
                             setVisits={(updatedVisits) =>
                               handleFieldChange(
-                                'dental_chart',
-                                typeof updatedVisits === 'function' ? updatedVisits(displayVisits || []) : updatedVisits
+                                "dental_chart",
+                                typeof updatedVisits === "function"
+                                  ? updatedVisits(displayVisits || [])
+                                  : updatedVisits,
                               )
                             }
                           />
@@ -1183,32 +1848,62 @@ export const RecordsRetrievalTab: React.FC = () => {
                               others: data.oh_others,
                             }}
                             onSectionAChange={(updated) => {
-                              handleFieldChange('oh_orally_fit_child', updated.orallyFitChild);
-                              handleFieldChange('oh_dental_caries', updated.dentalCaries);
-                              handleFieldChange('oh_gingivitis', updated.gingivitis);
-                              handleFieldChange('oh_periodontal_disease', updated.periodontalDisease);
-                              handleFieldChange('oh_debris', updated.debris);
-                              handleFieldChange('oh_calculus', updated.calculus);
-                              handleFieldChange('oh_abnormal_growth', updated.abnormalGrowth);
-                              handleFieldChange('oh_cleft_lip_palate', updated.cleftLipPalate);
-                              handleFieldChange('oh_others', updated.others);
+                              handleFieldChange(
+                                "oh_orally_fit_child",
+                                updated.orallyFitChild,
+                              );
+                              handleFieldChange(
+                                "oh_dental_caries",
+                                updated.dentalCaries,
+                              );
+                              handleFieldChange(
+                                "oh_gingivitis",
+                                updated.gingivitis,
+                              );
+                              handleFieldChange(
+                                "oh_periodontal_disease",
+                                updated.periodontalDisease,
+                              );
+                              handleFieldChange("oh_debris", updated.debris);
+                              handleFieldChange(
+                                "oh_calculus",
+                                updated.calculus,
+                              );
+                              handleFieldChange(
+                                "oh_abnormal_growth",
+                                updated.abnormalGrowth,
+                              );
+                              handleFieldChange(
+                                "oh_cleft_lip_palate",
+                                updated.cleftLipPalate,
+                              );
+                              handleFieldChange("oh_others", updated.others);
                             }}
                           />
-						  
-						 {/* Editable Services Monitoring Chart */}
+
+                          {/* Editable Services Monitoring Chart */}
                           <ServicesMonitoringChart
                             data={displayServices || {}}
-                            onChange={(updatedServices) => handleFieldChange('services_monitoring', updatedServices)}
+                            onChange={(updatedServices) =>
+                              handleFieldChange(
+                                "services_monitoring",
+                                updatedServices,
+                              )
+                            }
                             isEditable={isEditing}
                           />
-						  
-						  {/* 🎯 NEW: Editable Record of Services Rendered */}
-							<RecordOfServicesRendered
-							  rows={displayServicesRendered || []}
-							  onChange={(updatedRows) => handleFieldChange('record_of_services_rendered', updatedRows)}
-							  isEditable={true}
-							/>
-						  
+
+                          {/* 🎯 NEW: Editable Record of Services Rendered */}
+                          <RecordOfServicesRendered
+                            rows={displayServicesRendered || []}
+                            onChange={(updatedRows) =>
+                              handleFieldChange(
+                                "record_of_services_rendered",
+                                updatedRows,
+                              )
+                            }
+                            isEditable={true}
+                          />
                         </>
                       ) : (
                         <div className="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-4">
@@ -1227,7 +1922,8 @@ export const RecordsRetrievalTab: React.FC = () => {
                                   orallyFitChild: data.oh_orally_fit_child,
                                   dentalCaries: data.oh_dental_caries,
                                   gingivitis: data.oh_gingivitis,
-                                  periodontalDisease: data.oh_periodontal_disease,
+                                  periodontalDisease:
+                                    data.oh_periodontal_disease,
                                   debris: data.oh_debris,
                                   calculus: data.oh_calculus,
                                   abnormalGrowth: data.oh_abnormal_growth,
@@ -1235,29 +1931,28 @@ export const RecordsRetrievalTab: React.FC = () => {
                                   others: data.oh_others,
                                 }}
                               />
-							  
-							  {/* Read-Only Services Monitoring Chart */}
+
+                              {/* Read-Only Services Monitoring Chart */}
                               <ServicesMonitoringChart
                                 data={displayServices || {}}
                                 isEditable={false}
                               />
-							  
-							  {/* 🎯 NEW: Read-Only Record of Services Rendered */}
-								<RecordOfServicesRendered
-								  rows={displayServicesRendered || []}
-								  isEditable={false}
-								/>
-							  
+
+                              {/* 🎯 NEW: Read-Only Record of Services Rendered */}
+                              <RecordOfServicesRendered
+                                rows={displayServicesRendered || []}
+                                isEditable={false}
+                              />
                             </>
                           ) : (
                             <p className="text-xs text-slate-500 text-center py-4">
-                              No oral health chart logs recorded for this patient.
+                              No oral health chart logs recorded for this
+                              patient.
                             </p>
                           )}
                         </div>
                       )}
                     </div>
-
                   </div>
                 )}
               </div>
@@ -1265,16 +1960,16 @@ export const RecordsRetrievalTab: React.FC = () => {
           })}
         </div>
       )}
-	  
-	  {/* ------------------------------------------------------------- */}
+
+      {/* ------------------------------------------------------------- */}
       {/* MODULAR DELETE CONFIRMATION MODAL */}
       {/* ------------------------------------------------------------- */}
       <DeleteConfirmationModal
         isOpen={isDeleteModalOpen}
         patientName={
           selectedDeleteRecord
-            ? `${selectedDeleteRecord.surname || ''}, ${selectedDeleteRecord.first_name || ''}`
-            : ''
+            ? `${selectedDeleteRecord.surname || ""}, ${selectedDeleteRecord.first_name || ""}`
+            : ""
         }
         isDeleting={isDeleting}
         onClose={() => {
@@ -1283,8 +1978,6 @@ export const RecordsRetrievalTab: React.FC = () => {
         }}
         onConfirm={handleConfirmDelete}
       />
-	  
-	  
     </div>
   );
 };

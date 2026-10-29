@@ -21,7 +21,7 @@ import { QRCodeSVG } from 'qrcode.react'; // <-- ADD THIS IMPORT
 import axios from 'axios';
 
 import DentalChart from './components/DentalChart';
-import { TabNavigation } from './components/TabNavigation';
+
 import { RecordsRetrievalTab } from './components/RecordsRetrievalTab';
 import OralHealthConditionSummary from './components/OralHealthConditionSummary';
 import ServicesMonitoringChart, { type ServiceVisitRecord, type ServiceToothData } from './components/ServicesMonitoringChart';

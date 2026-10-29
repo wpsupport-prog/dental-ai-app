@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { BarChart3, RefreshCw, FileSpreadsheet } from 'lucide-react';
 import axios from 'axios';
 
@@ -24,87 +24,91 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || `http://${hostName}:80
 const addValueToMatrix = (
   m: DemographicMatrix,
   valToAdd: number,
-  numAgeInYears: number,
+  numAgeInYears: number | null,
   rawAgeStr: string,
   isMale: boolean,
   isFemale: boolean,
   isPregnant: boolean
 ) => {
-  if (!valToAdd || valToAdd <= 0) return;
+  if (!valToAdd || valToAdd <= 0 || numAgeInYears === null || isNaN(numAgeInYears)) return;
+
+  // TS type narrowing guard: numAgeInYears is guaranteed to be a number below
+  const age = Math.floor(numAgeInYears);
 
   // Pregnant Women
   if (isPregnant && isFemale) {
-    if (numAgeInYears >= 10 && numAgeInYears <= 14) m.preg10to14 = (m.preg10to14 || 0) + valToAdd;
-    else if (numAgeInYears >= 15 && numAgeInYears <= 19) m.preg15to19 = (m.preg15to19 || 0) + valToAdd;
-    else if (numAgeInYears >= 20 && numAgeInYears <= 49) m.preg20to49 = (m.preg20to49 || 0) + valToAdd;
+    if (age >= 10 && age <= 14) m.preg10to14 = (m.preg10to14 || 0) + valToAdd;
+    else if (age >= 15 && age <= 19) m.preg15to19 = (m.preg15to19 || 0) + valToAdd;
+    else if (age >= 20 && age <= 49) m.preg20to49 = (m.preg20to49 || 0) + valToAdd;
+    return;
   }
 
   // Infant 0-11 mos
-  if (isInfantAge(rawAgeStr, numAgeInYears)) {
+  if (isInfantAge(rawAgeStr, age)) {
     if (isMale) m.infantMale = (m.infantMale || 0) + valToAdd;
     if (isFemale) m.infantFemale = (m.infantFemale || 0) + valToAdd;
     return;
   }
 
   // School Age 1-4 Y/O
-  if (numAgeInYears === 1) {
+  if (age === 1) {
     if (isMale) m.age1Male = (m.age1Male || 0) + valToAdd;
     if (isFemale) m.age1Female = (m.age1Female || 0) + valToAdd;
-  } else if (numAgeInYears === 2) {
+  } else if (age === 2) {
     if (isMale) m.age2Male = (m.age2Male || 0) + valToAdd;
     if (isFemale) m.age2Female = (m.age2Female || 0) + valToAdd;
-  } else if (numAgeInYears === 3) {
+  } else if (age === 3) {
     if (isMale) m.age3Male = (m.age3Male || 0) + valToAdd;
     if (isFemale) m.age3Female = (m.age3Female || 0) + valToAdd;
-  } else if (numAgeInYears === 4) {
+  } else if (age === 4) {
     if (isMale) m.age4Male = (m.age4Male || 0) + valToAdd;
     if (isFemale) m.age4Female = (m.age4Female || 0) + valToAdd;
   }
 
   // School Age 5-9 Y/O
-  else if (numAgeInYears === 5) {
+  else if (age === 5) {
     if (isMale) m.age5Male = (m.age5Male || 0) + valToAdd;
     if (isFemale) m.age5Female = (m.age5Female || 0) + valToAdd;
-  } else if (numAgeInYears === 6) {
+  } else if (age === 6) {
     if (isMale) m.age6Male = (m.age6Male || 0) + valToAdd;
     if (isFemale) m.age6Female = (m.age6Female || 0) + valToAdd;
-  } else if (numAgeInYears === 7) {
+  } else if (age === 7) {
     if (isMale) m.age7Male = (m.age7Male || 0) + valToAdd;
     if (isFemale) m.age7Female = (m.age7Female || 0) + valToAdd;
-  } else if (numAgeInYears === 8) {
+  } else if (age === 8) {
     if (isMale) m.age8Male = (m.age8Male || 0) + valToAdd;
     if (isFemale) m.age8Female = (m.age8Female || 0) + valToAdd;
-  } else if (numAgeInYears === 9) {
+  } else if (age === 9) {
     if (isMale) m.age9Male = (m.age9Male || 0) + valToAdd;
     if (isFemale) m.age9Female = (m.age9Female || 0) + valToAdd;
   }
 
   // Adolescents 10-14 (except 12)
-  else if (numAgeInYears >= 10 && numAgeInYears <= 14 && numAgeInYears !== 12) {
+  else if (age >= 10 && age <= 14 && age !== 12) {
     if (isMale) m.adolescentExcept12Male = (m.adolescentExcept12Male || 0) + valToAdd;
     if (isFemale) m.adolescentExcept12Female = (m.adolescentExcept12Female || 0) + valToAdd;
   }
 
   // Adolescent 12 Y/O
-  else if (numAgeInYears === 12) {
+  else if (age === 12) {
     if (isMale) m.adolescent12Male = (m.adolescent12Male || 0) + valToAdd;
     if (isFemale) m.adolescent12Female = (m.adolescent12Female || 0) + valToAdd;
   }
 
   // Adolescents 15-19 Y/O
-  else if (numAgeInYears >= 15 && numAgeInYears <= 19) {
+  else if (age >= 15 && age <= 19) {
     if (isMale) m.adolescent15to19Male = (m.adolescent15to19Male || 0) + valToAdd;
     if (isFemale) m.adolescent15to19Female = (m.adolescent15to19Female || 0) + valToAdd;
   }
 
   // Adults 20-59 Y/O
-  else if (numAgeInYears >= 20 && numAgeInYears <= 59) {
+  else if (age >= 20 && age <= 59) {
     if (isMale) m.adult20to59Male = (m.adult20to59Male || 0) + valToAdd;
     if (isFemale) m.adult20to59Female = (m.adult20to59Female || 0) + valToAdd;
   }
 
   // Older Persons 60+ Y/O
-  else if (numAgeInYears >= 60) {
+  else if (age >= 60) {
     if (isMale) m.older60PlusMale = (m.older60PlusMale || 0) + valToAdd;
     if (isFemale) m.older60PlusFemale = (m.older60PlusFemale || 0) + valToAdd;
   }
@@ -179,7 +183,7 @@ export function MonthlyReportView() {
   const [municipality, setMunicipality] = useState<string>('SAN JOSE CITY / NUEVA ECIJA');
 
   const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [allRecords, setAllRecords] = useState<any[]>([]);
+  const [, setAllRecords] = useState<any[]>([]);
   
   // Dynamic indicators (NO. OF PERSON ATTENDED)
   const [counts, setCounts] = useState(createEmptyMatrix());
@@ -801,19 +805,6 @@ export function MonthlyReportView() {
           ).toString().trim().toLowerCase();
 
           return val === 'present' || val === 'checked' || val === 'true' || val === '✓' || val === 'yes' || val === '1';
-        };
-
-        const isOFCAbsent = (obj: any) => {
-          if (!obj) return false;
-          const val = (
-            obj.oh_orally_fit_child ??
-            obj.orally_fit_child ??
-            obj.orallyFitChild ??
-            obj.ofc ??
-            ''
-          ).toString().trim().toLowerCase();
-
-          return val === '*' || val === 'absent' || val === 'false' || val === 'no' || val === '0';
         };
 
         // 🎯 DIRECT TOP-LEVEL & VISIT OFC CHECK
